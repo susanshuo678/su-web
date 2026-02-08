@@ -1,44 +1,50 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>强后台管理 · 5005</title>
-  <style>
-    body{margin:0;background:#0f1528;color:#e8ecff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif}
-    .wrap{max-width:1100px;margin:0 auto;padding:16px}.panel{background:#161f38;border:1px solid #27345f;border-radius:12px;padding:14px;margin:10px 0}
-    h1,h3{margin:0 0 10px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-    input,textarea,select{width:100%;padding:9px;border-radius:8px;border:1px solid #334673;background:#0f1528;color:#e8ecff}
-    textarea{min-height:86px}.row{display:flex;gap:8px;flex-wrap:wrap}.btn{padding:8px 12px;border-radius:8px;border:0;background:#4f7cff;color:#fff;cursor:pointer}
-    .danger{background:#d9534f}.ok{background:#20b26b}.muted{color:#96a3cf} .item{border-top:1px dashed #334673;padding-top:10px;margin-top:10px}
-    #app{display:none}
-  </style>
-</head>
-<body>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>强后台管理 · 5005</title>
+<style>
+body{margin:0;background:#0f1528;color:#e8ecff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}.panel{background:#161f38;border:1px solid #27345f;border-radius:12px;padding:14px;margin:10px 0}
+h1,h3{margin:0 0 10px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+input,textarea{width:100%;padding:9px;border-radius:8px;border:1px solid #334673;background:#0f1528;color:#e8ecff}textarea{min-height:86px}
+.row{display:flex;gap:8px;flex-wrap:wrap}.btn{padding:8px 12px;border-radius:8px;border:0;background:#4f7cff;color:#fff;cursor:pointer}
+.danger{background:#d9534f}.ok{background:#20b26b}.muted{color:#96a3cf}.item{border-top:1px dashed #334673;padding-top:10px;margin-top:10px}#app{display:none}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.doc{min-height:220px;border:1px solid #334673;border-radius:8px;padding:10px;background:#0f1528;overflow:auto}
+.doc img,.doc video{max-width:100%;border-radius:8px;margin:8px 0}
+</style></head><body>
 <div class="wrap">
   <h1>教程站 · 强后台管理</h1>
-  <p class="muted">可编辑：广告位、入口图标、分类Tab、卡片排序、MD文案、图片/视频上传、密码</p>
+  <p class="muted">支持在线文档编辑（类腾讯文档/WPS）+ 图片视频插入到正文中间 + 前台可在线播放</p>
 
-  <section id="login" class="panel">
-    <h3>登录（仅密码）</h3>
+  <section id="login" class="panel"><h3>登录（仅密码）</h3>
     <input id="pwd" type="password" placeholder="输入后台密码"/>
     <div class="row" style="margin-top:8px"><button class="btn" onclick="login()">登录</button><span id="msg" class="muted"></span></div>
   </section>
 
   <div id="app">
-    <section class="panel">
-      <h3>修改后台密码</h3>
-      <div class="row"><input id="newPwd" type="password" placeholder="新密码（至少4位）"/><button class="btn ok" onclick="changePwd()">更新密码</button></div>
-    </section>
-
+    <section class="panel"><h3>修改后台密码</h3><div class="row"><input id="newPwd" type="password" placeholder="新密码（至少4位）"/><button class="btn ok" onclick="changePwd()">更新密码</button></div></section>
     <section class="panel"><h3>头部横排广告</h3><div id="ads"></div></section>
-    <section class="panel"><h3>功能入口宫格（图标+名称+链接）</h3><div id="shortcuts"></div></section>
+    <section class="panel"><h3>功能入口宫格</h3><div id="shortcuts"></div></section>
     <section class="panel"><h3>分类 Tabs</h3><div id="tabs"></div></section>
-    <section class="panel"><h3>优惠卡片（标题+三行摘要）</h3><div id="cards"></div></section>
 
     <section class="panel">
-      <h3>上传图片/视频</h3>
-      <div class="row"><input id="file" type="file"/><button class="btn ok" onclick="upload()">上传</button><input id="uploadedUrl" placeholder="上传后 URL 会出现在这里"/></div>
+      <h3>在线文档编辑器（卡片正文）</h3>
+      <p class="muted">先在“优惠卡片管理”选择一张卡片，再在这里编辑正文。支持图片/视频插入并保存为富文本。</p>
+      <div class="row"><input id="editingCardId" placeholder="当前编辑卡片ID" readonly><input id="editingCardTitle" placeholder="当前编辑卡片标题" readonly></div>
+      <div class="toolbar">
+        <button class="btn" onclick="cmd('bold')"><b>B</b></button>
+        <button class="btn" onclick="cmd('insertUnorderedList')">• 列表</button>
+        <button class="btn" onclick="cmd('formatBlock','h2')">H2</button>
+        <button class="btn" onclick="cmd('formatBlock','p')">正文</button>
+        <button class="btn" onclick="insertLink()">插入链接</button>
+        <button class="btn" onclick="insertImageByUrl()">插入图片URL</button>
+        <button class="btn" onclick="insertVideoByUrl()">插入视频URL</button>
+      </div>
+      <div id="docEditor" class="doc" contenteditable="true"></div>
+      <div class="row" style="margin-top:8px"><input id="file" type="file"/><button class="btn ok" onclick="uploadAndInsert()">上传并插入正文</button><button class="btn" onclick="saveDoc()">保存正文到当前卡片</button></div>
     </section>
+
+    <section class="panel"><h3>优惠卡片管理（标题 + 三行摘要）</h3><div id="cards"></div></section>
   </div>
 </div>
 <script>
@@ -47,45 +53,43 @@ const H=()=>({'Content-Type':'application/json','X-Admin-Token':token});
 async function req(url,m='GET',b,auth=true){const r=await fetch(url,{method:m,headers:auth?H():{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});if(r.status===401)throw new Error('未授权');return r.json();}
 const esc=s=>String(s??'').replaceAll("'","&#39;");
 
-async function login(){try{const r=await req('/api/login','POST',{password:pwd.value},false);token=r.token;login.style.display='none';app.style.display='block';loadAll();}catch(e){msg.innerText='登录失败';}}
+async function login(){try{const r=await req('/api/login','POST',{password:pwd.value},false);token=r.token;login.style.display='none';app.style.display='block';loadAll();}catch{msg.innerText='登录失败';}}
 async function changePwd(){await req('/api/change-password','POST',{password:newPwd.value});alert('密码已更新');newPwd.value='';}
-async function upload(){const f=file.files[0];if(!f)return alert('先选文件');const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f);});const r=await req('/api/upload','POST',{filename:f.name,contentBase64:b64});uploadedUrl.value='http://localhost:5005'+r.url;}
 
-async function renderCollection(elId, apiName, fields, tpl){
-  const list=await req('/api/'+apiName,'GET',null,false); const root=document.getElementById(elId);
-  root.innerHTML=`<div class='item'>${tpl({},true)}</div>`+list.map(x=>`<div class='item'>${tpl(x,false)}</div>`).join('');
+function cmd(name,val=null){document.execCommand(name,false,val);docEditor.focus();}
+function insertLink(){const u=prompt('输入链接 URL'); if(!u) return; document.execCommand('createLink',false,u);}
+function insertImageByUrl(){const u=prompt('图片 URL'); if(!u) return; document.execCommand('insertHTML',false,`<img src="${u}" alt=""/>`);}
+function insertVideoByUrl(){const u=prompt('视频 URL(mp4/webm)'); if(!u) return; document.execCommand('insertHTML',false,`<video src="${u}" controls style="max-width:100%"></video>`);}
+
+async function uploadAndInsert(){
+  const f=file.files[0]; if(!f) return alert('先选文件');
+  const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f);});
+  const r=await req('/api/upload','POST',{filename:f.name,contentBase64:b64});
+  const url='http://localhost:5005'+r.url;
+  if(f.type.startsWith('video/')) document.execCommand('insertHTML',false,`<video src="${url}" controls style="max-width:100%"></video>`);
+  else document.execCommand('insertHTML',false,`<img src="${url}" alt=""/>`);
 }
 
-function btns(api,id){return `<div class='row'><button class='btn' onclick="save('${api}','${id}')">保存</button><button class='btn danger' onclick="del('${api}','${id}')">删除</button></div>`}
+async function saveDoc(){
+  const id=editingCardId.value; if(!id) return alert('先选择一张卡片');
+  await req('/api/cards/'+id,'PUT',{contentHtml:docEditor.innerHTML});
+  alert('文档已保存');
+}
 
+function btns(api,id){return `<div class='row'><button class='btn' onclick="save('${api}','${id}')">保存</button><button class='btn' onclick="editDoc('${id}')">编辑文档</button><button class='btn danger' onclick="del('${api}','${id}')">删除</button></div>`}
 async function save(api,id){const box=document.getElementById(`${api}-${id}`);const data=Object.fromEntries([...box.querySelectorAll('[data-k]')].map(i=>[i.dataset.k, i.type==='checkbox'?i.checked:i.value]));await req(`/api/${api}/${id}`,'PUT',data);loadAll();}
 async function del(api,id){await req(`/api/${api}/${id}`,'DELETE');loadAll();}
 async function add(api,tempId){const box=document.getElementById(`${api}-${tempId}`);const data=Object.fromEntries([...box.querySelectorAll('[data-k]')].map(i=>[i.dataset.k, i.type==='checkbox'?i.checked:i.value]));await req(`/api/${api}`,'POST',data);loadAll();}
 
-async function loadAll(){
-  renderCollection('ads','ads',[],(x,isNew)=>`<div id='ads-${isNew?'new':x.id}' class='grid3'>
-    <input data-k='title' placeholder='广告标题' value='${esc(x.title)}'/><input data-k='image' placeholder='广告图 URL' value='${esc(x.image)}'/><input data-k='link' placeholder='广告链接' value='${esc(x.link)}'/>
-    <input data-k='order' placeholder='排序（数字越小越靠前）' value='${esc(x.order)}'/>${isNew?`<button class='btn ok' onclick="add('ads','new')">新增广告</button>`:btns('ads',x.id)}
-  </div>`);
+let cardCache=[];
+function renderCollection(elId, apiName, tpl){req('/api/'+apiName,'GET',null,false).then(list=>{const root=document.getElementById(elId);root.innerHTML=`<div class='item'>${tpl({},true)}</div>`+list.map(x=>`<div class='item'>${tpl(x,false)}</div>`).join('');if(apiName==='cards') cardCache=list;});}
+function editDoc(id){const c=cardCache.find(x=>x.id===id);if(!c) return; editingCardId.value=c.id; editingCardTitle.value=c.title||''; docEditor.innerHTML=c.contentHtml||c.contentMd||''; window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});}
 
-  renderCollection('shortcuts','shortcuts',[],(x,isNew)=>`<div id='shortcuts-${isNew?'new':x.id}' class='grid3'>
-    <input data-k='name' placeholder='名称' value='${esc(x.name)}'/><input data-k='icon' placeholder='图标 URL' value='${esc(x.icon)}'/><input data-k='link' placeholder='链接' value='${esc(x.link)}'/>
-    <input data-k='order' placeholder='排序' value='${esc(x.order)}'/>${isNew?`<button class='btn ok' onclick="add('shortcuts','new')">新增入口</button>`:btns('shortcuts',x.id)}
-  </div>`);
-
-  renderCollection('tabs','tabs',[],(x,isNew)=>`<div id='tabs-${isNew?'new':x.id}' class='grid3'>
-    <input data-k='name' placeholder='展示名' value='${esc(x.name)}'/><input data-k='key' placeholder='key(如 food)' value='${esc(x.key)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/>
-    ${isNew?`<button class='btn ok' onclick="add('tabs','new')">新增 Tab</button>`:btns('tabs',x.id)}
-  </div>`);
-
-  renderCollection('cards','cards',[],(x,isNew)=>`<div id='cards-${isNew?'new':x.id}'>
-    <div class='grid'><input data-k='title' placeholder='标题' value='${esc(x.title)}'/><input data-k='category' placeholder='分类key，如 food' value='${esc(x.category)}'/></div>
-    <textarea data-k='summary' placeholder='摘要（前台显示3行）'>${esc(x.summary)}</textarea>
-    <textarea data-k='contentMd' placeholder='Markdown 文案'>${esc(x.contentMd)}</textarea>
-    <div class='grid3'><input data-k='image' placeholder='图片URL' value='${esc(x.image)}'/><input data-k='video' placeholder='视频URL' value='${esc(x.video)}'/><input data-k='link' placeholder='链接' value='${esc(x.link)}'/></div>
-    <div class='grid3'><input data-k='buttonText' placeholder='按钮文案(如 领)' value='${esc(x.buttonText)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/><label>启用 <input data-k='enabled' type='checkbox' ${x.enabled!==false?'checked':''}/></label></div>
-    ${isNew?`<button class='btn ok' onclick="add('cards','new')">新增卡片</button>`:btns('cards',x.id)}
-  </div>`);
+function loadAll(){
+  renderCollection('ads','ads',(x,n)=>`<div id='ads-${n?'new':x.id}' class='grid3'><input data-k='title' placeholder='广告标题' value='${esc(x.title)}'/><input data-k='image' placeholder='广告图URL' value='${esc(x.image)}'/><input data-k='link' placeholder='广告链接' value='${esc(x.link)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/>${n?`<button class='btn ok' onclick="add('ads','new')">新增广告</button>`:btns('ads',x.id)}</div>`);
+  renderCollection('shortcuts','shortcuts',(x,n)=>`<div id='shortcuts-${n?'new':x.id}' class='grid3'><input data-k='name' placeholder='名称' value='${esc(x.name)}'/><input data-k='icon' placeholder='图标URL' value='${esc(x.icon)}'/><input data-k='link' placeholder='链接' value='${esc(x.link)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/>${n?`<button class='btn ok' onclick="add('shortcuts','new')">新增入口</button>`:btns('shortcuts',x.id)}</div>`);
+  renderCollection('tabs','tabs',(x,n)=>`<div id='tabs-${n?'new':x.id}' class='grid3'><input data-k='name' placeholder='展示名' value='${esc(x.name)}'/><input data-k='key' placeholder='key' value='${esc(x.key)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/>${n?`<button class='btn ok' onclick="add('tabs','new')">新增Tab</button>`:btns('tabs',x.id)}</div>`);
+  renderCollection('cards','cards',(x,n)=>`<div id='cards-${n?'new':x.id}'><div class='grid'><input data-k='title' placeholder='标题' value='${esc(x.title)}'/><input data-k='category' placeholder='分类key' value='${esc(x.category)}'/></div><textarea data-k='summary' placeholder='三行摘要'>${esc(x.summary)}</textarea><div class='grid3'><input data-k='image' placeholder='图片URL' value='${esc(x.image)}'/><input data-k='video' placeholder='视频URL' value='${esc(x.video)}'/><input data-k='link' placeholder='链接' value='${esc(x.link)}'/></div><div class='grid3'><input data-k='buttonText' placeholder='按钮文案' value='${esc(x.buttonText)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/><label>启用 <input data-k='enabled' type='checkbox' ${x.enabled!==false?'checked':''}/></label></div>${n?`<button class='btn ok' onclick="add('cards','new')">新增卡片</button>`:btns('cards',x.id)}</div>`);
 }
 </script>
 </body></html>
