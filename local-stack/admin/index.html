@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>后台管理（5005）</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif;background:#0f1528;color:#e8ecff;margin:0}
+    .wrap{max-width:980px;margin:0 auto;padding:18px}
+    .panel{background:#161f38;border:1px solid #27345f;border-radius:12px;padding:14px;margin-bottom:12px}
+    input,textarea{width:100%;margin:6px 0 10px;padding:10px;border-radius:8px;border:1px solid #334673;background:#0f1528;color:#e8ecff}
+    button{padding:9px 12px;border-radius:8px;border:0;background:#4f7cff;color:#fff;cursor:pointer}
+    .item{border-top:1px dashed #334673;padding-top:10px;margin-top:10px}
+    .row{display:flex;gap:8px}
+    .row button:last-child{background:#d9534f}
+    .muted{color:#98a6d4}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>教程站后台管理</h1>
+    <p class="muted">管理卡片 / 链接 / 图片（端口 5005）</p>
+
+    <section class="panel">
+      <h3>新增卡片</h3>
+      <input id="title" placeholder="标题" />
+      <textarea id="desc" placeholder="描述"></textarea>
+      <input id="link" placeholder="链接（https://...）" />
+      <input id="image" placeholder="图片 URL（https://...）" />
+      <button onclick="createCard()">新增</button>
+    </section>
+
+    <section class="panel">
+      <h3>已有卡片</h3>
+      <div id="list"></div>
+    </section>
+  </div>
+
+<script>
+async function api(path, method='GET', body){
+  const res = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: body?JSON.stringify(body):undefined });
+  return res.json();
+}
+
+async function load(){
+  const cards = await api('/api/cards');
+  const list = document.getElementById('list');
+  list.innerHTML = cards.map(c => `
+    <div class="item">
+      <input id="t-${c.id}" value="${(c.title||'').replaceAll('"','&quot;')}" />
+      <textarea id="d-${c.id}">${c.desc||''}</textarea>
+      <input id="l-${c.id}" value="${(c.link||'').replaceAll('"','&quot;')}" />
+      <input id="i-${c.id}" value="${(c.image||'').replaceAll('"','&quot;')}" />
+      <div class="row">
+        <button onclick="saveCard('${c.id}')">保存</button>
+        <button onclick="delCard('${c.id}')">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function createCard(){
+  await api('/api/cards','POST',{
+    title: document.getElementById('title').value,
+    desc: document.getElementById('desc').value,
+    link: document.getElementById('link').value,
+    image: document.getElementById('image').value
+  });
+  document.getElementById('title').value='';
+  document.getElementById('desc').value='';
+  document.getElementById('link').value='';
+  document.getElementById('image').value='';
+  load();
+}
+
+async function saveCard(id){
+  await api(`/api/cards/${id}`,'PUT',{
+    title: document.getElementById(`t-${id}`).value,
+    desc: document.getElementById(`d-${id}`).value,
+    link: document.getElementById(`l-${id}`).value,
+    image: document.getElementById(`i-${id}`).value
+  });
+  load();
+}
+
+async function delCard(id){
+  await api(`/api/cards/${id}`,'DELETE');
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

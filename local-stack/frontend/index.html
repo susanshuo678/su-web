@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小苏教程站（前台）</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif;background:#f6f8fc;margin:0}
+    .wrap{max-width:920px;margin:0 auto;padding:18px}
+    .card{background:#fff;border:1px solid #e6eaf2;border-radius:14px;padding:12px;margin:12px 0;display:grid;grid-template-columns:140px 1fr;gap:12px}
+    img{width:140px;height:96px;object-fit:cover;border-radius:10px;background:#eef2fb}
+    h1{margin:0 0 8px}
+    a{color:#2c55d8;text-decoration:none}
+    .muted{color:#6e7891}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>小苏教程站</h1>
+    <p class="muted">博客流前台（端口 5001）</p>
+    <div id="list"></div>
+  </div>
+
+<script>
+async function load(){
+  const res = await fetch('http://localhost:5005/api/cards');
+  const cards = await res.json();
+  const root = document.getElementById('list');
+  root.innerHTML = cards.map(c => `
+    <article class="card">
+      <img src="${c.image || ''}" onerror="this.style.display='none'"/>
+      <div>
+        <h3>${c.title || ''}</h3>
+        <p>${c.desc || ''}</p>
+        <a href="${c.link || '#'}" target="_blank">查看链接</a>
+      </div>
+    </article>
+  `).join('');
+}
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>
