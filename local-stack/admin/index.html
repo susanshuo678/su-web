@@ -3,92 +3,115 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>后台管理（5005）</title>
+  <title>教程站后台（5005）</title>
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif;background:#0f1528;color:#e8ecff;margin:0}
-    .wrap{max-width:980px;margin:0 auto;padding:18px}
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
     .panel{background:#161f38;border:1px solid #27345f;border-radius:12px;padding:14px;margin-bottom:12px}
     input,textarea{width:100%;margin:6px 0 10px;padding:10px;border-radius:8px;border:1px solid #334673;background:#0f1528;color:#e8ecff}
+    textarea{min-height:88px}
     button{padding:9px 12px;border-radius:8px;border:0;background:#4f7cff;color:#fff;cursor:pointer}
+    .row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
     .item{border-top:1px dashed #334673;padding-top:10px;margin-top:10px}
-    .row{display:flex;gap:8px}
-    .row button:last-child{background:#d9534f}
-    .muted{color:#98a6d4}
+    .danger{background:#d9534f}.ok{background:#20b26b}.muted{color:#98a6d4}
+    #app{display:none}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>教程站后台管理</h1>
-    <p class="muted">管理卡片 / 链接 / 图片（端口 5005）</p>
+<div class="wrap">
+  <h1>教程站后台管理</h1>
+  <p class="muted">支持：密码登录、广告位、卡片三行摘要、MD文案、图片/视频上传、链接管理</p>
+
+  <section id="login" class="panel">
+    <h3>登录</h3>
+    <input id="pwd" type="password" placeholder="输入后台密码" />
+    <button onclick="login()">登录</button>
+    <p id="loginMsg" class="muted"></p>
+  </section>
+
+  <div id="app">
+    <section class="panel">
+      <h3>头部横排广告位（滚动）</h3>
+      <div id="ads"></div>
+      <div class="row">
+        <input id="adText" placeholder="广告文案" />
+        <input id="adLink" placeholder="广告链接" />
+      </div>
+      <button onclick="addAd()">新增广告</button>
+    </section>
 
     <section class="panel">
-      <h3>新增卡片</h3>
+      <h3>新增教程卡片</h3>
       <input id="title" placeholder="标题" />
-      <textarea id="desc" placeholder="描述"></textarea>
-      <input id="link" placeholder="链接（https://...）" />
-      <input id="image" placeholder="图片 URL（https://...）" />
-      <button onclick="createCard()">新增</button>
+      <textarea id="summary" placeholder="三行摘要（前台按3行截断显示）"></textarea>
+      <textarea id="contentMd" placeholder="正文（支持 Markdown 原文编辑）"></textarea>
+      <div class="row">
+        <input id="link" placeholder="跳转链接" />
+        <input id="image" placeholder="图片 URL（或先上传）" />
+      </div>
+      <div class="row">
+        <input id="video" placeholder="视频 URL（mp4/webm 或外链）" />
+        <input id="file" type="file" />
+      </div>
+      <div class="row">
+        <button onclick="uploadMedia()" class="ok">上传图片/视频并回填</button>
+        <button onclick="addCard()">新增卡片</button>
+      </div>
     </section>
 
     <section class="panel">
       <h3>已有卡片</h3>
-      <div id="list"></div>
+      <div id="cards"></div>
     </section>
   </div>
-
+</div>
 <script>
-async function api(path, method='GET', body){
-  const res = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: body?JSON.stringify(body):undefined });
+let token='';
+async function api(path, method='GET', body, auth=true){
+  const headers={'Content-Type':'application/json'};
+  if(auth && token) headers['X-Admin-Token']=token;
+  const res=await fetch(path,{method,headers,body:body?JSON.stringify(body):undefined});
+  if(res.status===401) throw new Error('未授权，请重新登录');
   return res.json();
 }
-
-async function load(){
-  const cards = await api('/api/cards');
-  const list = document.getElementById('list');
-  list.innerHTML = cards.map(c => `
-    <div class="item">
-      <input id="t-${c.id}" value="${(c.title||'').replaceAll('"','&quot;')}" />
-      <textarea id="d-${c.id}">${c.desc||''}</textarea>
-      <input id="l-${c.id}" value="${(c.link||'').replaceAll('"','&quot;')}" />
-      <input id="i-${c.id}" value="${(c.image||'').replaceAll('"','&quot;')}" />
-      <div class="row">
-        <button onclick="saveCard('${c.id}')">保存</button>
-        <button onclick="delCard('${c.id}')">删除</button>
-      </div>
-    </div>
-  `).join('');
+async function login(){
+  try{
+    const r=await api('/api/login','POST',{password:document.getElementById('pwd').value},false);
+    token=r.token;document.getElementById('login').style.display='none';document.getElementById('app').style.display='block';
+    loadAds();loadCards();
+  }catch(e){document.getElementById('loginMsg').innerText='登录失败：'+e.message;}
 }
-
-async function createCard(){
-  await api('/api/cards','POST',{
-    title: document.getElementById('title').value,
-    desc: document.getElementById('desc').value,
-    link: document.getElementById('link').value,
-    image: document.getElementById('image').value
-  });
-  document.getElementById('title').value='';
-  document.getElementById('desc').value='';
-  document.getElementById('link').value='';
-  document.getElementById('image').value='';
-  load();
+async function loadAds(){
+  const ads=await api('/api/ads','GET',null,false);const el=document.getElementById('ads');
+  el.innerHTML=ads.map(a=>`<div class='item'><input id='at-${a.id}' value='${(a.text||'').replaceAll("'","&#39;")}'/><input id='al-${a.id}' value='${(a.link||'').replaceAll("'","&#39;")}'/><div class='row'><button onclick="saveAd('${a.id}')">保存</button><button class='danger' onclick="delAd('${a.id}')">删除</button></div></div>`).join('');
 }
+async function addAd(){await api('/api/ads','POST',{text:adText.value,link:adLink.value});adText.value='';adLink.value='';loadAds();}
+async function saveAd(id){await api('/api/ads/'+id,'PUT',{text:document.getElementById('at-'+id).value,link:document.getElementById('al-'+id).value});loadAds();}
+async function delAd(id){await api('/api/ads/'+id,'DELETE');loadAds();}
 
-async function saveCard(id){
-  await api(`/api/cards/${id}`,'PUT',{
-    title: document.getElementById(`t-${id}`).value,
-    desc: document.getElementById(`d-${id}`).value,
-    link: document.getElementById(`l-${id}`).value,
-    image: document.getElementById(`i-${id}`).value
-  });
-  load();
+async function uploadMedia(){
+  const f=document.getElementById('file').files[0]; if(!f) return alert('先选文件');
+  const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f);});
+  const r=await api('/api/upload','POST',{filename:f.name,contentBase64:b64});
+  if(f.type.startsWith('video/')) video.value='http://localhost:5005'+r.url; else image.value='http://localhost:5005'+r.url;
+  alert('上传成功');
 }
-
-async function delCard(id){
-  await api(`/api/cards/${id}`,'DELETE');
-  load();
+async function addCard(){
+  await api('/api/cards','POST',{title:title.value,summary:summary.value,contentMd:contentMd.value,link:link.value,image:image.value,video:video.value});
+  title.value=summary.value=contentMd.value=link.value=image.value=video.value='';loadCards();
 }
-
-load();
+async function loadCards(){
+  const list=await api('/api/cards','GET',null,false);const root=document.getElementById('cards');
+  root.innerHTML=list.map(c=>`<div class='item'>
+    <input id='t-${c.id}' value='${(c.title||'').replaceAll("'","&#39;")}'/>
+    <textarea id='s-${c.id}' placeholder='三行摘要'>${c.summary||''}</textarea>
+    <textarea id='m-${c.id}' placeholder='Markdown 文案'>${c.contentMd||''}</textarea>
+    <div class='row'><input id='l-${c.id}' value='${(c.link||'').replaceAll("'","&#39;")}'/><input id='i-${c.id}' value='${(c.image||'').replaceAll("'","&#39;")}'/><input id='v-${c.id}' value='${(c.video||'').replaceAll("'","&#39;")}'/></div>
+    <div class='row'><button onclick="saveCard('${c.id}')">保存</button><button class='danger' onclick="delCard('${c.id}')">删除</button></div>
+  </div>`).join('');
+}
+async function saveCard(id){await api('/api/cards/'+id,'PUT',{title:document.getElementById('t-'+id).value,summary:document.getElementById('s-'+id).value,contentMd:document.getElementById('m-'+id).value,link:document.getElementById('l-'+id).value,image:document.getElementById('i-'+id).value,video:document.getElementById('v-'+id).value});loadCards();}
+async function delCard(id){await api('/api/cards/'+id,'DELETE');loadCards();}
 </script>
 </body>
 </html>
