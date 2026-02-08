@@ -1,64 +1,54 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>小苏教程站</title>
   <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif;background:#f6f8fc;margin:0;color:#1f2a44}
-    .wrap{max-width:920px;margin:0 auto;padding:14px}
-    .ads{display:flex;gap:10px;overflow:auto;padding-bottom:6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
-    .ad{min-width:260px;background:linear-gradient(120deg,#ff7a7a,#ffb36b);color:#fff;border-radius:12px;padding:10px 12px;text-decoration:none;scroll-snap-align:start;flex:0 0 auto}
-    h1{margin:8px 0 4px;font-size:28px}.muted{color:#6e7891}
-    .card{background:#fff;border:1px solid #e6eaf2;border-radius:14px;padding:12px;margin:12px 0;display:grid;grid-template-columns:140px 1fr;gap:12px}
-    img,video{width:140px;height:96px;object-fit:cover;border-radius:10px;background:#eef2fb}
-    .summary{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5}
-    a{color:#2c55d8;text-decoration:none}
-
-    @media (max-width: 768px){
-      .wrap{padding:12px}
-      h1{font-size:24px}
-      .ad{min-width:220px}
-      .card{grid-template-columns:1fr;gap:10px;padding:10px}
-      img,video{width:100%;height:auto;max-height:220px}
-    }
-
-    @media (max-width: 420px){
-      .wrap{padding:10px}
-      .ad{min-width:190px;font-size:14px}
-      .card{border-radius:12px}
-      h3{font-size:17px;margin:4px 0}
-      .summary{font-size:14px}
-    }
+    body{margin:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif;color:#222}
+    .wrap{max-width:460px;margin:0 auto;padding:12px}
+    .banner{display:flex;overflow:auto;gap:8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+    .banner-item{min-width:100%;height:130px;border-radius:12px;overflow:hidden;position:relative;scroll-snap-align:start;background:linear-gradient(120deg,#ff6e4a,#ffb53d);color:#fff;text-decoration:none;display:block}
+    .banner-item img{width:100%;height:100%;object-fit:cover}.banner-title{position:absolute;left:12px;bottom:10px;background:rgba(0,0,0,.25);padding:4px 8px;border-radius:8px;font-size:13px}
+    .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;background:#fff;border-radius:12px;padding:12px;margin-top:12px}
+    .entry{text-align:center;text-decoration:none;color:#333;font-size:12px}.entry img{width:46px;height:46px;border-radius:23px;object-fit:cover;background:#f2f2f2}
+    .tabs{display:flex;gap:18px;overflow:auto;padding:12px 2px 8px}.tab{white-space:nowrap;color:#555;text-decoration:none;font-weight:600}.tab.active{color:#ff6f3c}
+    .coupon{background:linear-gradient(90deg,#ff2323,#ff4b2d);border-radius:12px;padding:6px;margin:10px 0}
+    .coupon-in{background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:space-between;padding:10px}
+    .left{display:flex;align-items:center;gap:10px}.logo{width:46px;height:46px;border-radius:10px;object-fit:cover;background:#f2f2f2}
+    .title{font-size:20px;font-weight:800}.summary{font-size:13px;color:#666;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;max-width:210px;line-height:1.4}
+    .btn{width:56px;height:56px;border-radius:28px;background:#ffd2b4;color:#c0392b;display:flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 auto}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>小苏教程站</h1>
-    <p class="muted">博客流 · 朋友口吻</p>
-    <div id="ads" class="ads"></div>
-    <div id="list"></div>
-  </div>
+<div class="wrap">
+  <div id="banner" class="banner"></div>
+  <div id="entries" class="grid"></div>
+  <div id="tabs" class="tabs"></div>
+  <div id="cards"></div>
+</div>
 <script>
+let active='all';
 async function load(){
-  const [adsRes,cardsRes]=await Promise.all([
-    fetch('http://localhost:5005/api/ads'),
-    fetch('http://localhost:5005/api/cards')
+  const [ads, shortcuts, tabs, cards] = await Promise.all([
+    fetch('http://localhost:5005/api/ads').then(r=>r.json()),
+    fetch('http://localhost:5005/api/shortcuts').then(r=>r.json()),
+    fetch('http://localhost:5005/api/tabs').then(r=>r.json()),
+    fetch('http://localhost:5005/api/cards').then(r=>r.json())
   ]);
-  const ads=await adsRes.json();
-  const cards=await cardsRes.json();
-  document.getElementById('ads').innerHTML=ads.map(a=>`<a class='ad' href='${a.link||'#'}' target='_blank'>${a.text||''}</a>`).join('');
-  document.getElementById('list').innerHTML=cards.map(c=>`
-    <article class='card'>
-      <div>${c.video?`<video src='${c.video}' controls></video>`:`<img src='${c.image||''}' onerror="this.style.display='none'"/>`}</div>
-      <div>
-        <h3>${c.title||''}</h3>
-        <p class='summary'>${c.summary||c.desc||''}</p>
-        ${c.link?`<a href='${c.link}' target='_blank'>查看链接</a>`:''}
+
+  banner.innerHTML = ads.map(a=>`<a class='banner-item' href='${a.link||'#'}' target='_blank'>${a.image?`<img src='${a.image}'/>`:''}<span class='banner-title'>${a.title||''}</span></a>`).join('');
+  entries.innerHTML = shortcuts.map(s=>`<a class='entry' href='${s.link||'#'}' target='_blank'><img src='${s.icon||''}' onerror="this.style.display='none'"/><div>${s.name||''}</div></a>`).join('');
+  tabs.innerHTML = tabs.map(t=>`<a class='tab ${active===t.key?'active':''}' href='javascript:void(0)' onclick="active='${t.key}';load()">${t.name||''}</a>`).join('');
+
+  const filtered = cards.filter(c=>c.enabled!==false).filter(c=>active==='all'||c.category===active);
+  cardsEl = document.getElementById('cards');
+  cardsEl.innerHTML = filtered.map(c=>`<div class='coupon'><div class='coupon-in'>
+      <div class='left'>${c.video?`<video class='logo' src='${c.video}' controls></video>`:`<img class='logo' src='${c.image||''}' onerror="this.style.display='none'"/>`}
+        <div><div class='title'>${c.title||''}</div><div class='summary'>${(c.summary||'').replaceAll('\n','<br/>')}</div></div>
       </div>
-    </article>`).join('');
+      <a class='btn' href='${c.link||'#'}' target='_blank'>${c.buttonText||'领'}</a>
+    </div></div>`).join('');
 }
-load(); setInterval(load, 10000);
+load(); setInterval(load, 15000);
 </script>
-</body>
-</html>
+</body></html>

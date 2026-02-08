@@ -1,117 +1,91 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>教程站后台（5005）</title>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>强后台管理 · 5005</title>
   <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif;background:#0f1528;color:#e8ecff;margin:0}
-    .wrap{max-width:980px;margin:0 auto;padding:16px}
-    .panel{background:#161f38;border:1px solid #27345f;border-radius:12px;padding:14px;margin-bottom:12px}
-    input,textarea{width:100%;margin:6px 0 10px;padding:10px;border-radius:8px;border:1px solid #334673;background:#0f1528;color:#e8ecff}
-    textarea{min-height:88px}
-    button{padding:9px 12px;border-radius:8px;border:0;background:#4f7cff;color:#fff;cursor:pointer}
-    .row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
-    .item{border-top:1px dashed #334673;padding-top:10px;margin-top:10px}
-    .danger{background:#d9534f}.ok{background:#20b26b}.muted{color:#98a6d4}
+    body{margin:0;background:#0f1528;color:#e8ecff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}.panel{background:#161f38;border:1px solid #27345f;border-radius:12px;padding:14px;margin:10px 0}
+    h1,h3{margin:0 0 10px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    input,textarea,select{width:100%;padding:9px;border-radius:8px;border:1px solid #334673;background:#0f1528;color:#e8ecff}
+    textarea{min-height:86px}.row{display:flex;gap:8px;flex-wrap:wrap}.btn{padding:8px 12px;border-radius:8px;border:0;background:#4f7cff;color:#fff;cursor:pointer}
+    .danger{background:#d9534f}.ok{background:#20b26b}.muted{color:#96a3cf} .item{border-top:1px dashed #334673;padding-top:10px;margin-top:10px}
     #app{display:none}
   </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>教程站后台管理</h1>
-  <p class="muted">支持：密码登录、广告位、卡片三行摘要、MD文案、图片/视频上传、链接管理</p>
+  <h1>教程站 · 强后台管理</h1>
+  <p class="muted">可编辑：广告位、入口图标、分类Tab、卡片排序、MD文案、图片/视频上传、密码</p>
 
   <section id="login" class="panel">
-    <h3>登录</h3>
-    <input id="pwd" type="password" placeholder="输入后台密码" />
-    <button onclick="login()">登录</button>
-    <p id="loginMsg" class="muted"></p>
+    <h3>登录（仅密码）</h3>
+    <input id="pwd" type="password" placeholder="输入后台密码"/>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="login()">登录</button><span id="msg" class="muted"></span></div>
   </section>
 
   <div id="app">
     <section class="panel">
-      <h3>头部横排广告位（滚动）</h3>
-      <div id="ads"></div>
-      <div class="row">
-        <input id="adText" placeholder="广告文案" />
-        <input id="adLink" placeholder="广告链接" />
-      </div>
-      <button onclick="addAd()">新增广告</button>
+      <h3>修改后台密码</h3>
+      <div class="row"><input id="newPwd" type="password" placeholder="新密码（至少4位）"/><button class="btn ok" onclick="changePwd()">更新密码</button></div>
     </section>
 
-    <section class="panel">
-      <h3>新增教程卡片</h3>
-      <input id="title" placeholder="标题" />
-      <textarea id="summary" placeholder="三行摘要（前台按3行截断显示）"></textarea>
-      <textarea id="contentMd" placeholder="正文（支持 Markdown 原文编辑）"></textarea>
-      <div class="row">
-        <input id="link" placeholder="跳转链接" />
-        <input id="image" placeholder="图片 URL（或先上传）" />
-      </div>
-      <div class="row">
-        <input id="video" placeholder="视频 URL（mp4/webm 或外链）" />
-        <input id="file" type="file" />
-      </div>
-      <div class="row">
-        <button onclick="uploadMedia()" class="ok">上传图片/视频并回填</button>
-        <button onclick="addCard()">新增卡片</button>
-      </div>
-    </section>
+    <section class="panel"><h3>头部横排广告</h3><div id="ads"></div></section>
+    <section class="panel"><h3>功能入口宫格（图标+名称+链接）</h3><div id="shortcuts"></div></section>
+    <section class="panel"><h3>分类 Tabs</h3><div id="tabs"></div></section>
+    <section class="panel"><h3>优惠卡片（标题+三行摘要）</h3><div id="cards"></div></section>
 
     <section class="panel">
-      <h3>已有卡片</h3>
-      <div id="cards"></div>
+      <h3>上传图片/视频</h3>
+      <div class="row"><input id="file" type="file"/><button class="btn ok" onclick="upload()">上传</button><input id="uploadedUrl" placeholder="上传后 URL 会出现在这里"/></div>
     </section>
   </div>
 </div>
 <script>
 let token='';
-async function api(path, method='GET', body, auth=true){
-  const headers={'Content-Type':'application/json'};
-  if(auth && token) headers['X-Admin-Token']=token;
-  const res=await fetch(path,{method,headers,body:body?JSON.stringify(body):undefined});
-  if(res.status===401) throw new Error('未授权，请重新登录');
-  return res.json();
-}
-async function login(){
-  try{
-    const r=await api('/api/login','POST',{password:document.getElementById('pwd').value},false);
-    token=r.token;document.getElementById('login').style.display='none';document.getElementById('app').style.display='block';
-    loadAds();loadCards();
-  }catch(e){document.getElementById('loginMsg').innerText='登录失败：'+e.message;}
-}
-async function loadAds(){
-  const ads=await api('/api/ads','GET',null,false);const el=document.getElementById('ads');
-  el.innerHTML=ads.map(a=>`<div class='item'><input id='at-${a.id}' value='${(a.text||'').replaceAll("'","&#39;")}'/><input id='al-${a.id}' value='${(a.link||'').replaceAll("'","&#39;")}'/><div class='row'><button onclick="saveAd('${a.id}')">保存</button><button class='danger' onclick="delAd('${a.id}')">删除</button></div></div>`).join('');
-}
-async function addAd(){await api('/api/ads','POST',{text:adText.value,link:adLink.value});adText.value='';adLink.value='';loadAds();}
-async function saveAd(id){await api('/api/ads/'+id,'PUT',{text:document.getElementById('at-'+id).value,link:document.getElementById('al-'+id).value});loadAds();}
-async function delAd(id){await api('/api/ads/'+id,'DELETE');loadAds();}
+const H=()=>({'Content-Type':'application/json','X-Admin-Token':token});
+async function req(url,m='GET',b,auth=true){const r=await fetch(url,{method:m,headers:auth?H():{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});if(r.status===401)throw new Error('未授权');return r.json();}
+const esc=s=>String(s??'').replaceAll("'","&#39;");
 
-async function uploadMedia(){
-  const f=document.getElementById('file').files[0]; if(!f) return alert('先选文件');
-  const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f);});
-  const r=await api('/api/upload','POST',{filename:f.name,contentBase64:b64});
-  if(f.type.startsWith('video/')) video.value='http://localhost:5005'+r.url; else image.value='http://localhost:5005'+r.url;
-  alert('上传成功');
+async function login(){try{const r=await req('/api/login','POST',{password:pwd.value},false);token=r.token;login.style.display='none';app.style.display='block';loadAll();}catch(e){msg.innerText='登录失败';}}
+async function changePwd(){await req('/api/change-password','POST',{password:newPwd.value});alert('密码已更新');newPwd.value='';}
+async function upload(){const f=file.files[0];if(!f)return alert('先选文件');const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f);});const r=await req('/api/upload','POST',{filename:f.name,contentBase64:b64});uploadedUrl.value='http://localhost:5005'+r.url;}
+
+async function renderCollection(elId, apiName, fields, tpl){
+  const list=await req('/api/'+apiName,'GET',null,false); const root=document.getElementById(elId);
+  root.innerHTML=`<div class='item'>${tpl({},true)}</div>`+list.map(x=>`<div class='item'>${tpl(x,false)}</div>`).join('');
 }
-async function addCard(){
-  await api('/api/cards','POST',{title:title.value,summary:summary.value,contentMd:contentMd.value,link:link.value,image:image.value,video:video.value});
-  title.value=summary.value=contentMd.value=link.value=image.value=video.value='';loadCards();
+
+function btns(api,id){return `<div class='row'><button class='btn' onclick="save('${api}','${id}')">保存</button><button class='btn danger' onclick="del('${api}','${id}')">删除</button></div>`}
+
+async function save(api,id){const box=document.getElementById(`${api}-${id}`);const data=Object.fromEntries([...box.querySelectorAll('[data-k]')].map(i=>[i.dataset.k, i.type==='checkbox'?i.checked:i.value]));await req(`/api/${api}/${id}`,'PUT',data);loadAll();}
+async function del(api,id){await req(`/api/${api}/${id}`,'DELETE');loadAll();}
+async function add(api,tempId){const box=document.getElementById(`${api}-${tempId}`);const data=Object.fromEntries([...box.querySelectorAll('[data-k]')].map(i=>[i.dataset.k, i.type==='checkbox'?i.checked:i.value]));await req(`/api/${api}`,'POST',data);loadAll();}
+
+async function loadAll(){
+  renderCollection('ads','ads',[],(x,isNew)=>`<div id='ads-${isNew?'new':x.id}' class='grid3'>
+    <input data-k='title' placeholder='广告标题' value='${esc(x.title)}'/><input data-k='image' placeholder='广告图 URL' value='${esc(x.image)}'/><input data-k='link' placeholder='广告链接' value='${esc(x.link)}'/>
+    <input data-k='order' placeholder='排序（数字越小越靠前）' value='${esc(x.order)}'/>${isNew?`<button class='btn ok' onclick="add('ads','new')">新增广告</button>`:btns('ads',x.id)}
+  </div>`);
+
+  renderCollection('shortcuts','shortcuts',[],(x,isNew)=>`<div id='shortcuts-${isNew?'new':x.id}' class='grid3'>
+    <input data-k='name' placeholder='名称' value='${esc(x.name)}'/><input data-k='icon' placeholder='图标 URL' value='${esc(x.icon)}'/><input data-k='link' placeholder='链接' value='${esc(x.link)}'/>
+    <input data-k='order' placeholder='排序' value='${esc(x.order)}'/>${isNew?`<button class='btn ok' onclick="add('shortcuts','new')">新增入口</button>`:btns('shortcuts',x.id)}
+  </div>`);
+
+  renderCollection('tabs','tabs',[],(x,isNew)=>`<div id='tabs-${isNew?'new':x.id}' class='grid3'>
+    <input data-k='name' placeholder='展示名' value='${esc(x.name)}'/><input data-k='key' placeholder='key(如 food)' value='${esc(x.key)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/>
+    ${isNew?`<button class='btn ok' onclick="add('tabs','new')">新增 Tab</button>`:btns('tabs',x.id)}
+  </div>`);
+
+  renderCollection('cards','cards',[],(x,isNew)=>`<div id='cards-${isNew?'new':x.id}'>
+    <div class='grid'><input data-k='title' placeholder='标题' value='${esc(x.title)}'/><input data-k='category' placeholder='分类key，如 food' value='${esc(x.category)}'/></div>
+    <textarea data-k='summary' placeholder='摘要（前台显示3行）'>${esc(x.summary)}</textarea>
+    <textarea data-k='contentMd' placeholder='Markdown 文案'>${esc(x.contentMd)}</textarea>
+    <div class='grid3'><input data-k='image' placeholder='图片URL' value='${esc(x.image)}'/><input data-k='video' placeholder='视频URL' value='${esc(x.video)}'/><input data-k='link' placeholder='链接' value='${esc(x.link)}'/></div>
+    <div class='grid3'><input data-k='buttonText' placeholder='按钮文案(如 领)' value='${esc(x.buttonText)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/><label>启用 <input data-k='enabled' type='checkbox' ${x.enabled!==false?'checked':''}/></label></div>
+    ${isNew?`<button class='btn ok' onclick="add('cards','new')">新增卡片</button>`:btns('cards',x.id)}
+  </div>`);
 }
-async function loadCards(){
-  const list=await api('/api/cards','GET',null,false);const root=document.getElementById('cards');
-  root.innerHTML=list.map(c=>`<div class='item'>
-    <input id='t-${c.id}' value='${(c.title||'').replaceAll("'","&#39;")}'/>
-    <textarea id='s-${c.id}' placeholder='三行摘要'>${c.summary||''}</textarea>
-    <textarea id='m-${c.id}' placeholder='Markdown 文案'>${c.contentMd||''}</textarea>
-    <div class='row'><input id='l-${c.id}' value='${(c.link||'').replaceAll("'","&#39;")}'/><input id='i-${c.id}' value='${(c.image||'').replaceAll("'","&#39;")}'/><input id='v-${c.id}' value='${(c.video||'').replaceAll("'","&#39;")}'/></div>
-    <div class='row'><button onclick="saveCard('${c.id}')">保存</button><button class='danger' onclick="delCard('${c.id}')">删除</button></div>
-  </div>`).join('');
-}
-async function saveCard(id){await api('/api/cards/'+id,'PUT',{title:document.getElementById('t-'+id).value,summary:document.getElementById('s-'+id).value,contentMd:document.getElementById('m-'+id).value,link:document.getElementById('l-'+id).value,image:document.getElementById('i-'+id).value,video:document.getElementById('v-'+id).value});loadCards();}
-async function delCard(id){await api('/api/cards/'+id,'DELETE');loadCards();}
 </script>
-</body>
-</html>
+</body></html>
