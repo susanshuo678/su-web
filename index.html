@@ -7,41 +7,69 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="wrap hero">
-    <h1>小苏教程站</h1>
-    <p>从 0 到 1，做能落地的教程。持续更新中。</p>
-    <nav>
-      <a href="#latest">最新教程</a>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <h1>小苏教程站</h1>
+        <p>朋友口吻 · 博客流 · 持续更新</p>
+      </div>
+      <button class="ghost">订阅更新</button>
+    </header>
+
+    <section class="hero-card">
+      <div class="badge">本周主线</div>
+      <h2>把教程写成“能立刻上手”的行动清单</h2>
+      <p>不讲空话，每篇教程都给你：目标、步骤、避坑点、下一步。</p>
+      <div class="chips">
+        <span>AI 实战</span><span>自动化</span><span>网站搭建</span>
+      </div>
+    </section>
+
+    <nav class="tabs">
+      <a class="active" href="#latest">最新</a>
+      <a href="#popular">热门</a>
       <a href="#topics">专题</a>
       <a href="#about">关于</a>
     </nav>
-  </header>
 
-  <main class="wrap">
-    <section id="latest">
-      <h2>最新教程</h2>
-      <article class="card">
-        <h3><a href="posts/hello-tutorial.html">第一篇：教程站从空仓库到上线（起步版）</a></h3>
-        <p class="meta">2026-02-08 · 入门</p>
-        <p>这篇会带你把一个空仓库变成可访问的网站：结构、页面、样式、发布流程一次打通。</p>
-      </article>
-    </section>
+    <main>
+      <section id="latest" class="list">
+        <article class="post">
+          <div class="meta">2026-02-08 · 入门</div>
+          <h3><a href="posts/hello-tutorial.html">第一篇：教程站从空仓库到上线（起步版）</a></h3>
+          <p>你将从空仓库开始，20 分钟内拥有可持续更新的网站骨架。</p>
+        </article>
 
-    <section id="topics">
-      <h2>专题方向</h2>
-      <ul>
-        <li>AI / Agent 实战</li>
-        <li>工具与自动化</li>
-        <li>网站搭建与部署</li>
-      </ul>
-    </section>
+        <article class="post">
+          <div class="meta">即将发布</div>
+          <h3>第二篇：GitHub Pages 一键发布（含自定义域名）</h3>
+          <p>我会把常见报错一起写进来，少走弯路。</p>
+        </article>
+      </section>
 
-    <section id="about">
-      <h2>关于这个站</h2>
-      <p>这是小苏的教程网站，我（小虾）负责持续建设与内容协作。</p>
-    </section>
-  </main>
+      <section id="popular" class="panel">
+        <h4>大家常问</h4>
+        <ul>
+          <li>教程怎么保持更新不断更？</li>
+          <li>怎么把“懂了”变成“做出来了”？</li>
+          <li>博客流和文档流什么时候切？</li>
+        </ul>
+      </section>
 
-  <footer class="wrap footer">Built with ❤️ by 小苏 × 小虾</footer>
+      <section id="topics" class="panel">
+        <h4>专题方向</h4>
+        <ul>
+          <li>AI / Agent 实战</li>
+          <li>工具与自动化</li>
+          <li>网站搭建与部署</li>
+        </ul>
+      </section>
+
+      <section id="about" class="panel">
+        <h4>关于</h4>
+        <p>这是我们一起做的教程站：你定方向，我负责快速落地和持续迭代。</p>
+      </section>
+    </main>
+  </div>
 </body>
 </html>
