@@ -1949,6 +1949,47 @@ function autoFixInvalidLinks() {
   return { fixed };
 }
 
+function normalizeSchemelessUrl(raw = '') {
+  const v = String(raw || '').trim();
+  if (!v) return '';
+  if (v.startsWith('//')) return `https:${v}`;
+  if (/^www\.[^\s]+/i.test(v)) return `https://${v}`;
+  return v;
+}
+
+function autoFixSchemelessLinks() {
+  const checks = [
+    { file: 'ads', fields: ['link', 'image'] },
+    { file: 'shortcuts', fields: ['link', 'icon'] },
+    { file: 'cards', fields: ['link', 'image', 'video'] }
+  ];
+  let fixed = 0;
+
+  for (const check of checks) {
+    const list = readJson(FILES[check.file], []);
+    let changed = false;
+    const next = list.map(item => {
+      const copy = { ...item };
+      for (const f of check.fields) {
+        if (!(f in copy)) continue;
+        const oldValue = String(copy[f] || '').trim();
+        if (!oldValue) continue;
+        const normalized = normalizeSchemelessUrl(oldValue);
+        if (normalized === oldValue) continue;
+        if (!isSafeHttpLikeLink(normalized)) continue;
+        copy[f] = normalized;
+        fixed++;
+        changed = true;
+      }
+      return copy;
+    });
+    if (changed) writeJson(FILES[check.file], next);
+  }
+
+  if (fixed > 0) invalidateBootstrapCache();
+  return { fixed };
+}
+
 const backend = http.createServer((req, res) => {
   const u = new URL(req.url, `http://localhost:${BACKEND_PORT}`);
   if (req.method === 'OPTIONS') return send(res, 204, '');
@@ -2086,6 +2127,12 @@ const backend = http.createServer((req, res) => {
   if (u.pathname === '/api/admin/quick-fix-links' && req.method === 'POST') {
     if (!auth(req,res)) return;
     const result = autoFixInvalidLinks();
+    return send(res, 200, JSON.stringify({ ok: true, fixed: result.fixed }));
+  }
+
+  if (u.pathname === '/api/admin/fix-schemeless-links' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = autoFixSchemelessLinks();
     return send(res, 200, JSON.stringify({ ok: true, fixed: result.fixed }));
   }
 

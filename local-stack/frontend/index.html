@@ -40,6 +40,7 @@
 .tabpage{display:none;opacity:0;transform:translateY(6px)}.tabpage.active{display:block;opacity:1;transform:none;transition:opacity .18s ease,transform .18s ease}
 .to-top{position:fixed;right:14px;bottom:128px;border:0;background:#334f91;color:#fff;border-radius:999px;padding:9px 11px;font-size:12px;box-shadow:var(--shadow);display:none}
 .to-top.show{display:block}
+.read-progress-wrap{position:fixed;left:12px;right:12px;bottom:126px;z-index:75;display:none}.read-progress-wrap.show{display:flex}.read-progress-track{flex:1;height:6px;background:rgba(23,38,73,.12);border-radius:999px;overflow:hidden}.read-progress-fill{height:100%;width:0;background:linear-gradient(90deg,#3a7afe,#6f98ff);transition:width .18s ease}.read-progress-text{margin-left:8px;font-size:11px;color:#4f607f;min-width:34px;text-align:right}
 .skeleton{position:relative;overflow:hidden;background:#eef2fb;border-radius:10px;min-height:72px;margin-top:8px}
 .skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);animation:shimmer 1.25s infinite}
 @keyframes shimmer{100%{transform:translateX(100%)}}
@@ -72,7 +73,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
-    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+L 续看，Alt+W 切 24h NEW，Alt+N 切 可领+24h。</div>
+    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+T 切当前栏目范围，Alt+L 续看，Alt+W 切 24h NEW，Alt+N 切 可领+24h。</div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
       <button class="filter-chip" data-media="image" type="button">含图片</button>
@@ -113,6 +114,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
 
 <button id="refreshBtn" class="refresh" aria-label="刷新内容" title="刷新内容" onclick="manualRefresh()">刷新内容</button>
 <button id="toTopBtn" class="to-top" aria-label="回到顶部" title="回到顶部">回顶部</button>
+<div id="readProgressWrap" class="read-progress-wrap" aria-hidden="true"><div class="read-progress-track"><div id="readProgressFill" class="read-progress-fill"></div></div><span id="readProgressText" class="read-progress-text">0%</span></div>
 <div id="syncTime" class="sync-time" aria-live="polite">尚未同步</div>
 <div id="syncState" class="sync-state" aria-live="polite">等待首次同步</div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -157,6 +159,9 @@ const tabBotsEl = document.getElementById('tab-bots');
 const staleNoticeEl = document.getElementById('staleNotice');
 const refreshBtnEl = document.getElementById('refreshBtn');
 const toTopBtnEl = document.getElementById('toTopBtn');
+const readProgressWrapEl = document.getElementById('readProgressWrap');
+const readProgressFillEl = document.getElementById('readProgressFill');
+const readProgressTextEl = document.getElementById('readProgressText');
 const searchInputEl = document.getElementById('cardSearch');
 const resultMetaEl = document.getElementById('resultMeta');
 const mediaFilterEls = [...document.querySelectorAll('.filter-chip[data-media]')];
@@ -744,7 +749,10 @@ async function fetchBootstrapWithRetry(force=false, signal){
     } catch (e) {
       lastError = e;
       if (signal?.aborted) throw e;
-      if (i < attempts - 1) await new Promise(r => setTimeout(r, 300));
+      if (i < attempts - 1) {
+        const waitMs = 220 * (2 ** i) + Math.floor(Math.random() * 120);
+        await new Promise(r => setTimeout(r, waitMs));
+      }
     } finally {
       if (timer) clearTimeout(timer);
       if (signal && onAbort) signal.removeEventListener('abort', onAbort);
@@ -1356,6 +1364,15 @@ window.addEventListener('keydown', (e) => {
     const btn = [...document.querySelectorAll('.nav-btn')].find(x => (x.getAttribute('onclick')||'').includes(`'${tab}'`));
     if (btn) switchTab(tab, btn);
   }
+  if (e.altKey && (e.key === 't' || e.key === 'T')) {
+    e.preventDefault();
+    strictTabScope = !strictTabScope;
+    tabScopeToggleEl?.classList.toggle('active', strictTabScope);
+    tabScopeToggleEl?.setAttribute('aria-pressed', strictTabScope ? 'true' : 'false');
+    if (currentData) applyData(currentData);
+    showToast(strictTabScope ? '已切换：仅看当前栏目' : '已切换：跨栏目联查');
+    return;
+  }
   if (e.altKey && (e.key === 'r' || e.key === 'R')) {
     e.preventDefault();
     pickRandomVisibleCard();
@@ -1397,16 +1414,27 @@ if (recentSortToggleEl) {
     showToast(recentSortEnabled ? '已切换：最近更新优先' : '已切换：默认排序');
   });
 }
+function updateReadProgress(){
+  const doc = document.documentElement;
+  const scrollTop = window.scrollY || doc.scrollTop || 0;
+  const maxScrollable = Math.max(1, (doc.scrollHeight || 0) - window.innerHeight);
+  const ratio = Math.max(0, Math.min(1, scrollTop / maxScrollable));
+  const percent = Math.round(ratio * 100);
+  if (toTopBtnEl) toTopBtnEl.classList.toggle('show', scrollTop > 360);
+  if (readProgressWrapEl) readProgressWrapEl.classList.toggle('show', scrollTop > 220);
+  if (readProgressFillEl) readProgressFillEl.style.width = `${percent}%`;
+  if (readProgressTextEl) readProgressTextEl.textContent = `${percent}%`;
+}
 if (toTopBtnEl) {
   toTopBtnEl.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-  window.addEventListener('scroll', () => {
-    toTopBtnEl.classList.toggle('show', window.scrollY > 360);
-  }, { passive: true });
+  window.addEventListener('scroll', updateReadProgress, { passive: true });
+  window.addEventListener('resize', updateReadProgress, { passive: true });
 }
 restoreSearchState();
 restoreActiveTab();
 updateStarChipLabel();
 updateNetworkUi();
+updateReadProgress();
 init();
 
 window.addEventListener('storage', (e) => {

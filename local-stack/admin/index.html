@@ -70,6 +70,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="repairTabKeys()">自动修复空分类</button>
           <button class="btn" onclick="validateLinks()">链接体检</button>
           <button class="btn ok" onclick="quickFixLinks()">一键修复非法链接</button>
+          <button class="btn ok" onclick="fixSchemelessLinks()">一键补全缺失协议</button>
           <button class="btn" onclick="runHealthCheck()">健康检查</button>
           <button class="btn" onclick="auditCardSummaries()">摘要体检</button>
           <button class="btn ok" onclick="normalizeCardSummaries()">摘要一键规范化</button>
@@ -605,6 +606,19 @@ async function quickFixLinks(){
     refreshSummary();
   } catch (e) {
     toast(`修复失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function fixSchemelessLinks(){
+  if(!confirm('确认补全缺失协议？会将 //example.com 或 www.example.com 自动补成 https://...')) return;
+  try {
+    const r = await req('/api/admin/fix-schemeless-links', 'POST', {});
+    toast(`补全完成：${r.fixed||0} 项`);
+    await validateLinks();
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`补全失败：${e?.message || '网络异常'}`);
   }
 }
 
