@@ -60,6 +60,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="quickRecentBtn" class="search-clear" type="button" aria-label="只看近3天更新">近3天</button>
       <button id="quick14Btn" class="search-clear" type="button" aria-label="只看14天内更新">14天</button>
       <button id="quickNew24Btn" class="search-clear" type="button" aria-label="只看24小时内更新">24h NEW</button>
+      <button id="quickClaimRandomBtn" class="search-clear" type="button" aria-label="随机一个可领取">随机可领</button>
       <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="copyAllLinksBtn" class="search-clear" type="button" aria-label="复制全部可领链接">复制可领</button>
@@ -81,6 +82,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="today" type="button">今日更新</button>
       <button class="filter-chip" data-media="today-link" type="button">今日可领</button>
       <button class="filter-chip" data-media="new-24h" type="button">24h NEW</button>
+      <button class="filter-chip" data-media="text-only" type="button">纯文本</button>
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
       <button class="filter-chip" data-media="unstarred" type="button">未收藏</button>
       <button id="starLinkFilterChip" class="filter-chip" type="button" aria-label="收藏且可领取">收藏+可领</button>
@@ -162,6 +164,7 @@ const quickTodayBtnEl = document.getElementById('quickTodayBtn');
 const quickRecentBtnEl = document.getElementById('quickRecentBtn');
 const quick14BtnEl = document.getElementById('quick14Btn');
 const quickNew24BtnEl = document.getElementById('quickNew24Btn');
+const quickClaimRandomBtnEl = document.getElementById('quickClaimRandomBtn');
 const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
 const filterCollapseTipEl = document.getElementById('filterCollapseTip');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
@@ -382,6 +385,11 @@ function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
   if(mediaFilter==='today-link') return isSameLocalDay(card?.updatedAt || card?.createdAt) && hasClaimableLink(card);
   if(mediaFilter==='new-24h') return isRecentlyUpdated(card, 1);
+  if(mediaFilter==='text-only'){
+    const hasMedia = !!String(card?.image||'').trim() || !!String(card?.video||'').trim();
+    const hasText = !!String(card?.summary||'').trim() || !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
+    return !hasMedia && hasText;
+  }
   if(mediaFilter==='starred') return isCardStarred(card);
   if(mediaFilter==='unstarred') return !isCardStarred(card);
   if(mediaFilter==='star-link') return isCardStarred(card) && hasClaimableLink(card);
@@ -417,6 +425,25 @@ function showToast(text){
   el.style.display = 'block';
   clearTimeout(window.__suToastTimer);
   window.__suToastTimer = setTimeout(() => { el.style.display = 'none'; }, 1700);
+}
+
+function pickRandomClaimableCard(){
+  const active = document.querySelector('.tabpage.active');
+  if (!active) return;
+  const cards = [...active.querySelectorAll('.item[data-card-id]')].filter(el => {
+    const href = String(el.querySelector('.card-actions .btn[href]')?.getAttribute('href') || '').trim();
+    return href && href !== '#';
+  });
+  if (!cards.length) return showToast('当前栏目没有可领取内容');
+  const target = cards[Math.floor(Math.random() * cards.length)];
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.style.outline = '2px solid #22a06b';
+  target.style.outlineOffset = '2px';
+  setTimeout(() => {
+    target.style.outline = 'none';
+    target.style.outlineOffset = '0';
+  }, 1200);
+  showToast(`随机可领：第 ${cards.indexOf(target) + 1} 条`);
 }
 
 function pickRandomVisibleCard(){
@@ -894,7 +921,7 @@ function restoreSearchState(){
   const hideVisited = params.get('hideVisited') ?? (safeGetLocalStorage('suweb_hide_visited') || '0');
   const claimUnseen = params.get('claimUnseen') ?? (safeGetLocalStorage('suweb_claim_unseen') || '0');
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link','media-link','fresh-link','fresh-3','fresh-14','content','today','today-link','new-24h','starred','unstarred','star-link'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','media-link','fresh-link','fresh-3','fresh-14','content','today','today-link','new-24h','text-only','starred','unstarred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
   filterBarCollapsed = filterCollapsed === '1';
@@ -1046,6 +1073,9 @@ if (quickNew24BtnEl) {
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'new-24h' ? '已切到24h NEW' : '已恢复全部内容');
   });
+}
+if (quickClaimRandomBtnEl) {
+  quickClaimRandomBtnEl.addEventListener('click', pickRandomClaimableCard);
 }
 if (toggleFilterBarBtnEl) {
   toggleFilterBarBtnEl.addEventListener('click', () => {

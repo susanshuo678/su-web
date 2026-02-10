@@ -440,10 +440,14 @@ function writeJson(file, data) {
     rotateBackups(file);
     try { fs.copyFileSync(file, backup); } catch {}
   }
-  fs.writeFileSync(tmp, content, 'utf8');
-  fs.renameSync(tmp, file);
-  jsonReadCache.delete(file);
-  return true;
+  try {
+    fs.writeFileSync(tmp, content, 'utf8');
+    fs.renameSync(tmp, file);
+    jsonReadCache.delete(file);
+    return true;
+  } finally {
+    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {}
+  }
 }
 function send(res, status, body, type = 'application/json; charset=utf-8', method = 'GET') {
   const payload = Buffer.isBuffer(body) ? body : Buffer.from(String(body || ''), 'utf8');
@@ -1364,6 +1368,40 @@ function getCardsQualityOverview() {
   return data;
 }
 
+
+function getPublishReadinessReport() {
+  const cards = getSortedCollection('cards').filter(x => x.enabled !== false);
+  const nowMs = Date.now();
+  const metrics = { total: cards.length, missingLink: 0, missingSummary: 0, missingButtonText: 0, stale14d: 0 };
+  const risks = [];
+
+  for (const card of cards) {
+    const reasons = [];
+    const link = String(card.link || '').trim();
+    const summary = String(card.summary || '').trim();
+    const buttonText = String(card.buttonText || '').trim();
+    const ts = Date.parse(String(card.updatedAt || card.createdAt || ''));
+    if (!link || link === '#') { metrics.missingLink++; reasons.push('缺少可领链接'); }
+    if (!summary) { metrics.missingSummary++; reasons.push('缺少摘要'); }
+    if (!buttonText) { metrics.missingButtonText++; reasons.push('缺少按钮文案'); }
+    if (!Number.isFinite(ts) || (nowMs - ts) > 14 * 24 * 60 * 60 * 1000) { metrics.stale14d++; reasons.push('超过14天未更新'); }
+    if (reasons.length) {
+      risks.push({ id: String(card.id || ''), title: String(card.title || ''), reasons });
+    }
+  }
+
+  const weightedRisk = metrics.missingLink * 3 + metrics.missingSummary * 2 + metrics.missingButtonText + metrics.stale14d;
+  const denominator = Math.max(1, cards.length * 7);
+  const score = Math.max(0, 100 - Math.round((weightedRisk / denominator) * 100));
+  return {
+    generatedAt: new Date().toISOString(),
+    ready: score >= 85,
+    score,
+    metrics,
+    topRisks: risks.slice(0, 8)
+  };
+}
+
 function autoDisableLowQualityCards() {
   const list = readJson(FILES.cards, []);
   let updated = 0;
@@ -1893,6 +1931,11 @@ const backend = http.createServer((req, res) => {
   if (u.pathname === '/api/admin/cards/quality-overview' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (!auth(req,res)) return;
     return sendJsonWithEtag(req, res, getCardsQualityOverview(), 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+  if (u.pathname === '/api/admin/cards/publish-readiness' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    return sendJsonWithEtag(req, res, getPublishReadinessReport(), 'private, max-age=2, stale-while-revalidate=10');
   }
 
   if (u.pathname === '/api/admin/cards/category-stats' && (req.method === 'GET' || req.method === 'HEAD')) {
