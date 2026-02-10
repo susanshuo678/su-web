@@ -41,6 +41,7 @@
 .skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);animation:shimmer 1.25s infinite}
 @keyframes shimmer{100%{transform:translateX(100%)}}
 .toast{position:fixed;left:50%;bottom:146px;transform:translateX(-50%);background:rgba(20,30,54,.9);color:#fff;padding:8px 12px;border-radius:999px;font-size:12px;z-index:90;display:none;max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hl{background:#fff2a8;color:#4b3d00;border-radius:4px;padding:0 2px}
+body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{font-size:15px;margin-bottom:4px}body.dense-mode .sub{font-size:12px;line-height:1.45}body.dense-mode .media{aspect-ratio:2.2/1}
 </style>
 </head>
 <body>
@@ -66,6 +67,8 @@
       <button id="tabScopeToggle" class="filter-chip" type="button" aria-pressed="false">仅看当前栏目</button>
       <button id="recentSortToggle" class="filter-chip" type="button" aria-pressed="false">最近更新优先</button>
       <button id="focusModeToggle" class="filter-chip" type="button" aria-pressed="false">专注模式</button>
+      <button id="denseModeToggle" class="filter-chip" type="button" aria-pressed="false">紧凑列表</button>
+      <button id="shareFilterBtn" class="filter-chip" type="button">复制筛选链接</button>
       <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
     </div>
   </div>
@@ -130,6 +133,8 @@ const randomPickBtnEl = document.getElementById('randomPickBtn');
 const clearStarBtnEl = document.getElementById('clearStarBtn');
 const starLinkFilterChipEl = document.getElementById('starLinkFilterChip');
 const focusModeToggleEl = document.getElementById('focusModeToggle');
+const denseModeToggleEl = document.getElementById('denseModeToggle');
+const shareFilterBtnEl = document.getElementById('shareFilterBtn');
 const syncStateEl = document.getElementById('syncState');
 let currentData = null;
 let currentQuery = '';
@@ -137,6 +142,7 @@ let currentMediaFilter = 'all';
 let strictTabScope = false;
 let recentSortEnabled = false;
 let focusModeEnabled = false;
+let denseModeEnabled = false;
 const STAR_KEY = 'suweb_starred_cards';
 const SANITIZE_CACHE_LIMIT = 120;
 const sanitizeCache = new Map();
@@ -500,6 +506,7 @@ function applyData(data){
   safeSetLocalStorage('suweb_strict_tab_scope', strictTabScope ? '1' : '0');
   safeSetLocalStorage('suweb_recent_sort', recentSortEnabled ? '1' : '0');
   safeSetLocalStorage('suweb_focus_mode', focusModeEnabled ? '1' : '0');
+  safeSetLocalStorage('suweb_dense_mode', denseModeEnabled ? '1' : '0');
   const tabKeys=[(tabs[0]?.key||'help').trim()||'help',(tabs[1]?.key||'hang').trim()||'hang',(tabs[2]?.key||'bots').trim()||'bots'];
   const inTab=(c,key)=>{ const cat=(c.category||'all').trim(); return cat==='all' || cat===key; };
   const list1=cards.filter(c=>inTab(c,tabKeys[0]));
@@ -607,16 +614,20 @@ async function init(force=false){
 
 
 function restoreSearchState(){
-  const q = safeGetLocalStorage('suweb_search_query') || '';
-  const media = safeGetLocalStorage('suweb_media_filter') || 'all';
-  const strictScope = safeGetLocalStorage('suweb_strict_tab_scope') || '0';
-  const recentSort = safeGetLocalStorage('suweb_recent_sort') || '0';
+  const params = new URLSearchParams(location.search || '');
+  const q = params.get('q') ?? (safeGetLocalStorage('suweb_search_query') || '');
+  const media = params.get('media') ?? (safeGetLocalStorage('suweb_media_filter') || 'all');
+  const strictScope = params.get('scope') ?? (safeGetLocalStorage('suweb_strict_tab_scope') || '0');
+  const recentSort = params.get('sort') ?? (safeGetLocalStorage('suweb_recent_sort') || '0');
   const focusMode = safeGetLocalStorage('suweb_focus_mode') || '0';
+  const denseMode = params.get('dense') ?? (safeGetLocalStorage('suweb_dense_mode') || '0');
   currentQuery = String(q).trim().toLowerCase();
   currentMediaFilter = ['all','image','video','link','content','today','starred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
   focusModeEnabled = focusMode === '1';
+  denseModeEnabled = denseMode === '1';
+  document.body.classList.toggle('dense-mode', denseModeEnabled);
   if (searchInputEl) searchInputEl.value = currentQuery;
   mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
   if (tabScopeToggleEl) {
@@ -631,6 +642,10 @@ function restoreSearchState(){
     focusModeToggleEl.classList.toggle('active', focusModeEnabled);
     focusModeToggleEl.setAttribute('aria-pressed', focusModeEnabled ? 'true' : 'false');
   }
+  if (denseModeToggleEl) {
+    denseModeToggleEl.classList.toggle('active', denseModeEnabled);
+    denseModeToggleEl.setAttribute('aria-pressed', denseModeEnabled ? 'true' : 'false');
+  }
   if (starLinkFilterChipEl) {
     starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
   }
@@ -643,7 +658,8 @@ function getAutoRefreshIntervalMs(){
 }
 
 function restoreActiveTab(){
-  const saved = safeGetLocalStorage('suweb_active_tab');
+  const params = new URLSearchParams(location.search || '');
+  const saved = params.get('tab') || safeGetLocalStorage('suweb_active_tab');
   if (!saved) return;
   const page = document.getElementById('page-' + saved);
   if (!page) return;
@@ -701,6 +717,28 @@ if (focusModeToggleEl) {
     focusModeToggleEl.setAttribute('aria-pressed', focusModeEnabled ? 'true' : 'false');
     if (currentData) applyData(currentData);
     showToast(focusModeEnabled ? '专注模式已开启' : '专注模式已关闭');
+  });
+}
+if (denseModeToggleEl) {
+  denseModeToggleEl.addEventListener('click', () => {
+    denseModeEnabled = !denseModeEnabled;
+    denseModeToggleEl.classList.toggle('active', denseModeEnabled);
+    denseModeToggleEl.setAttribute('aria-pressed', denseModeEnabled ? 'true' : 'false');
+    document.body.classList.toggle('dense-mode', denseModeEnabled);
+    if (currentData) applyData(currentData);
+    showToast(denseModeEnabled ? '紧凑列表已开启' : '紧凑列表已关闭');
+  });
+}
+if (shareFilterBtnEl) {
+  shareFilterBtnEl.addEventListener('click', async () => {
+    const q = encodeURIComponent(currentQuery || '');
+    const media = encodeURIComponent(currentMediaFilter || 'all');
+    const scope = strictTabScope ? '1' : '0';
+    const sort = recentSortEnabled ? '1' : '0';
+    const dense = denseModeEnabled ? '1' : '0';
+    const activeTab = encodeURIComponent(currentTabName() || 'help');
+    const url = `${location.origin}${location.pathname}?q=${q}&media=${media}&scope=${scope}&sort=${sort}&dense=${dense}&tab=${activeTab}`;
+    await copyPlainText(url, '筛选链接已复制');
   });
 }
 window.addEventListener('keydown', (e) => {

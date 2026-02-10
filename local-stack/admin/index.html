@@ -75,6 +75,8 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
           <button class="btn ok" onclick="fillMissingUpdatedAt()">补齐更新时间</button>
           <button class="btn ok" onclick="fillMissingButtonText()">补齐按钮文案</button>
+          <button class="btn" onclick="auditStaleCards()">陈旧内容体检</button>
+          <button class="btn danger" onclick="disableStaleCards()">一键停用陈旧内容</button>
           <span id="summaryMeta" class="muted"></span>
         </div>
         <div class="stats">
@@ -103,6 +105,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
         <div id="duplicateCheckBox" class="muted" style="margin-top:10px"></div>
         <div id="categoryStatsBox" class="muted" style="margin-top:10px"></div>
+        <div id="staleCardsBox" class="muted" style="margin-top:10px"></div>
       </section>
 
       <section id="adsView" class="view panel"><h3>头部横排广告</h3><div id="ads"></div></section>
@@ -676,6 +679,39 @@ async function fillMissingButtonText(){
     loadAll();
   } catch (e) {
     toast(`补齐按钮文案失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function auditStaleCards(){
+  const box = document.getElementById('staleCardsBox');
+  if (box) box.innerHTML = '陈旧内容体检中...';
+  try {
+    const r = await req('/api/admin/cards/stale?days=14&limit=20', 'GET');
+    const items = Array.isArray(r.items) ? r.items : [];
+    if (!items.length) {
+      if (box) box.innerHTML = `✅ 未发现超过 ${r.days||14} 天未更新且仍启用的卡片`;
+      toast('陈旧内容体检完成：未发现异常');
+      return;
+    }
+    const rows = items.map(x=>`<li><code>${esc(x.id||'')}</code> · ${esc(x.title||'未命名')} · 分类:${esc(x.category||'-')} · ${esc(String(x.daysSinceUpdated||'-'))} 天未更新</li>`).join('');
+    if (box) box.innerHTML = `<div style="color:#ffd3d3">⚠️ 检测到 ${r.total||items.length} 张陈旧卡片（展示前 ${items.length} 条）</div><ul>${rows}</ul>`;
+    toast(`陈旧内容体检完成：${r.total||items.length} 张`);
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">体检失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`陈旧内容体检失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function disableStaleCards(){
+  if(!confirm('确认停用超过 30 天未更新且仍启用的卡片？仅停用，不删除。')) return;
+  try {
+    const r = await req('/api/admin/cards/stale-disable', 'POST', { days: 30 });
+    toast(`停用完成：更新 ${r.updated||0}/${r.total||0}`);
+    await auditStaleCards();
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`停用失败：${e?.message || '网络异常'}`);
   }
 }
 

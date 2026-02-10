@@ -1011,6 +1011,62 @@ function fillMissingButtonText() {
   return { updated, total: list.length };
 }
 
+function getStaleCards(days = 14, limit = 20) {
+  const safeDays = Math.min(365, Math.max(1, Number(days) || 14));
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+  const nowMs = Date.now();
+  const thresholdMs = safeDays * 24 * 60 * 60 * 1000;
+  const rows = getSortedCollection('cards')
+    .filter(x => x.enabled !== false)
+    .map(item => {
+      const tsRaw = String(item.updatedAt || item.createdAt || '').trim();
+      const ts = Date.parse(tsRaw);
+      const ageMs = Number.isFinite(ts) ? (nowMs - ts) : Number.MAX_SAFE_INTEGER;
+      const daysSinceUpdated = Number.isFinite(ts) ? Math.floor(ageMs / (24 * 60 * 60 * 1000)) : null;
+      return {
+        id: item.id,
+        title: String(item.title || ''),
+        category: String(item.category || ''),
+        updatedAt: tsRaw || null,
+        daysSinceUpdated,
+        isStale: ageMs >= thresholdMs
+      };
+    })
+    .filter(x => x.isStale)
+    .sort((a, b) => (b.daysSinceUpdated || 0) - (a.daysSinceUpdated || 0));
+
+  return {
+    days: safeDays,
+    total: rows.length,
+    items: rows.slice(0, safeLimit)
+  };
+}
+
+function disableStaleCards(days = 30) {
+  const safeDays = Math.min(365, Math.max(1, Number(days) || 30));
+  const list = readJson(FILES.cards, []);
+  const nowMs = Date.now();
+  const thresholdMs = safeDays * 24 * 60 * 60 * 1000;
+  let updated = 0;
+
+  const next = list.map(item => {
+    if (item.enabled === false) return item;
+    const tsRaw = String(item.updatedAt || item.createdAt || '').trim();
+    const ts = Date.parse(tsRaw);
+    const stale = !Number.isFinite(ts) || (nowMs - ts >= thresholdMs);
+    if (!stale) return item;
+    updated++;
+    return { ...item, enabled: false, updatedAt: new Date().toISOString() };
+  });
+
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+
+  return { days: safeDays, updated, total: list.length };
+}
+
 function buildExportPayload() {
   return {
     exportedAt: new Date().toISOString(),
@@ -1476,6 +1532,22 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
     if (!auth(req,res)) return;
     const result = fillMissingButtonText();
     return send(res, 200, JSON.stringify({ ok: true, ...result }));
+  }
+
+  if (u.pathname === '/api/admin/cards/stale' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const days = Math.min(365, Math.max(1, Number(u.searchParams.get('days') || 14)));
+    const limit = Math.min(100, Math.max(1, Number(u.searchParams.get('limit') || 20)));
+    const data = getStaleCards(days, limit);
+    return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+  if (u.pathname === '/api/admin/cards/stale-disable' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ days }) => {
+      const result = disableStaleCards(days);
+      return send(res, 200, JSON.stringify({ ok: true, ...result }));
+    }).catch((err)=>handleParseError(res, err));
   }
 
   if (u.pathname === '/api/upload' && req.method === 'POST') {
