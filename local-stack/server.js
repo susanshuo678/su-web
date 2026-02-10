@@ -77,6 +77,28 @@ function getBootstrapPayload() {
   return data;
 }
 
+function getBootstrapPayloadByCategory(category = '', scope = 'strict') {
+  const key = String(category || '').trim().toLowerCase();
+  if (!key) return getBootstrapPayload();
+  const base = getBootstrapPayload();
+  const allowAll = scope !== 'strict';
+  const cards = (base.cards || []).filter(item => {
+    const cat = String(item?.category || '').trim().toLowerCase();
+    if (allowAll && cat === 'all') return true;
+    return cat === key;
+  });
+  return {
+    ...base,
+    cards,
+    meta: {
+      ...(base.meta || {}),
+      filter: { category: key, scope: allowAll ? 'with-all' : 'strict' },
+      totalCardsBeforeFilter: Array.isArray(base.cards) ? base.cards.length : 0,
+      cardsAfterFilter: cards.length
+    }
+  };
+}
+
 function getBootstrapEtag(data) {
   if (bootstrapEtagCache && bootstrapEtagCache.dataRef === data) return bootstrapEtagCache.etag;
   const etag = `W/"bootstrap-${crypto.createHash('sha1').update(JSON.stringify(data)).digest('hex').slice(0, 16)}"`;
@@ -164,6 +186,7 @@ function sendJsonWithEtag(req, res, data, cacheControl = 'private, max-age=0, mu
       'ETag': etag,
       'Cache-Control': cacheControl,
       'Access-Control-Allow-Origin': '*',
+      'X-Data-Updated-At': getLatestDataUpdatedAt() || '',
       'Vary': 'If-None-Match, Accept-Encoding'
     });
     return res.end();
@@ -205,8 +228,10 @@ function sendJsonWithEtag(req, res, data, cacheControl = 'private, max-age=0, mu
   res.end(encoded.body);
 }
 
-function sendBootstrap(req, res) {
-  const data = getBootstrapPayload();
+function sendBootstrap(req, res, options = {}) {
+  const category = String(options.category || "").trim();
+  const scope = String(options.scope || "strict").trim().toLowerCase();
+  const data = getBootstrapPayloadByCategory(category, scope);
   const etag = getBootstrapEtag(data);
   const cacheControl = PUBLIC_API_CACHE_CONTROL;
   if (etagMatches(req.headers['if-none-match'], etag)) {
@@ -214,6 +239,7 @@ function sendBootstrap(req, res) {
       'ETag': etag,
       'Cache-Control': cacheControl,
       'Access-Control-Allow-Origin': '*',
+      'X-Data-Updated-At': getLatestDataUpdatedAt() || '',
       'Vary': 'If-None-Match, Accept-Encoding'
     });
     return res.end();
@@ -231,6 +257,7 @@ function sendBootstrap(req, res) {
       'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
       'Cache-Control': cacheControl,
       'ETag': etag,
+      'X-Data-Updated-At': getLatestDataUpdatedAt() || '',
       'Vary': 'If-None-Match, Accept-Encoding'
     });
     return res.end();
@@ -254,6 +281,7 @@ function sendBootstrap(req, res) {
     'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
     'Cache-Control': cacheControl,
     'ETag': etag,
+    'X-Data-Updated-At': getLatestDataUpdatedAt() || '',
     'Vary': 'If-None-Match, Accept-Encoding'
   };
   if (useBr) headers['Content-Encoding'] = 'br';
@@ -2499,7 +2527,10 @@ const backend = http.createServer((req, res) => {
   if (u.pathname === '/' || u.pathname === '/admin' || u.pathname === '/admin/' || u.pathname === '/admin/login' || u.pathname === '/admin/login/') return serveFile(req, res, path.join(ROOT, 'admin', 'index.html'));
   if (u.pathname === '/api/bootstrap' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (!applyBootstrapRateLimit(req, res)) return;
-    return sendBootstrap(req, res);
+    const category = String(u.searchParams.get('category') || '').trim().slice(0, 64);
+    const scopeRaw = String(u.searchParams.get('scope') || 'strict').toLowerCase();
+    const scope = scopeRaw === 'with-all' ? 'with-all' : 'strict';
+    return sendBootstrap(req, res, { category, scope });
   }
 
   if (u.pathname === '/api/login' && req.method === 'POST') {
@@ -3145,7 +3176,10 @@ const frontend = http.createServer((req, res) => {
   // one-shot payload for fast first screen
   if (u.pathname === '/api/bootstrap' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (!applyBootstrapRateLimit(req, res)) return;
-    return sendBootstrap(req, res);
+    const category = String(u.searchParams.get('category') || '').trim().slice(0, 64);
+    const scopeRaw = String(u.searchParams.get('scope') || 'strict').toLowerCase();
+    const scope = scopeRaw === 'with-all' ? 'with-all' : 'strict';
+    return sendBootstrap(req, res, { category, scope });
   }
 
   // proxy-like read endpoints so mobile frontend can use same origin (avoid localhost CORS/mixed-content issues)

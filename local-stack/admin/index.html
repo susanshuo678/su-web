@@ -55,7 +55,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
     </section>
 
     <div id="app">
-      <div class="top"><div class="title">商用后台管理台</div><div class="muted">在线状态 · 已连接</div></div>
+      <div class="top"><div class="title">商用后台管理台</div><div class="row"><button class="btn" type="button" onclick="openFrontendSite()">打开前台</button><button class="btn" type="button" onclick="copyFrontendSite()">复制前台地址</button><div class="muted">在线状态 · 已连接</div></div></div>
 
       <section id="dashboard" class="view active panel">
         <div class="row" style="margin-bottom:10px">
@@ -362,6 +362,31 @@ async function req(url,m='GET',b,auth=true){
   throw lastErr || new Error('请求失败');
 }
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+function openFrontendSite(){
+  const host = String(location.hostname || 'localhost');
+  window.open(`${location.protocol}//${host}:5001/`, '_blank', 'noopener');
+}
+
+async function copyFrontendSite(){
+  const host = String(location.hostname || 'localhost');
+  const url = `${location.protocol}//${host}:5001/`;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+      toast('前台地址已复制');
+      return;
+    }
+  } catch {}
+  const input = document.createElement('input');
+  input.value = url;
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand('copy');
+  input.remove();
+  toast('前台地址已复制');
+}
+
 function showView(id,btn){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('.m').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active'); try{ localStorage.setItem('suweb_admin_active_view', id); }catch{}}
 function restoreActiveView(){
   let id='dashboard';
@@ -978,8 +1003,7 @@ async function copyOpsDigest(){
       `- 24h更新Top${u.length}:`
     ];
     for (const item of u) lines.push(`  - ${item.title || item.id}（${item.category || '-'}，${item.updatedAgoText || '-' }）`);
-    const text = lines.join('
-');
+    const text = lines.join('\n');
     const ok = await copyText(text);
     if (!ok) throw new Error('剪贴板不可用');
     toast('运营摘要已复制');

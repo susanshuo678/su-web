@@ -76,6 +76,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="quickShortSummaryBtn" class="search-clear" type="button" aria-label="只看短摘要内容">短摘要</button>
       <button id="quickEmptySummaryBtn" class="search-clear" type="button" aria-label="只看空摘要内容">空摘要</button>
       <button id="quickMediaBtn" class="search-clear" type="button" aria-label="只看图文内容">有媒体</button>
+      <button id="quickContentBtn" class="search-clear" type="button" aria-label="只看含正文内容">含正文</button>
       <button id="quickTextOnlyBtn" class="search-clear" type="button" aria-label="只看纯文本内容">纯文本</button>
       <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
@@ -84,7 +85,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
-    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+Y 切 7天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+T 切当前栏目范围，Alt+L 续看，Alt+W 切 24h NEW，Alt+E 切 48h NEW，Alt+D 切 有更新时间，Alt+N 切 可领+24h，Alt+Q 切 可领+48h，Alt+K 切 可领+摘要，Alt+X 切 空摘要，Alt+M 开关自动刷新，Alt+U 切今日可领，Alt+P 切纯文本。</div>
+    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+Y 切 7天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+T 切当前栏目范围，Alt+L 续看，Alt+W 切 24h NEW，Alt+E 切 48h NEW，Alt+D 切 有更新时间，Alt+N 切 可领+24h，Alt+Q 切 可领+48h，Alt+K 切 可领+摘要，Alt+X 切 空摘要，Alt+M 开关自动刷新，Alt+U 切今日可领，Alt+C 切含正文，Alt+P 切纯文本。</div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
       <button class="filter-chip" data-media="image" type="button">含图片</button>
@@ -211,6 +212,7 @@ const quickDatedBtnEl = document.getElementById('quickDatedBtn');
 const quickShortSummaryBtnEl = document.getElementById('quickShortSummaryBtn');
 const quickEmptySummaryBtnEl = document.getElementById('quickEmptySummaryBtn');
 const quickMediaBtnEl = document.getElementById('quickMediaBtn');
+const quickContentBtnEl = document.getElementById('quickContentBtn');
 const quickTextOnlyBtnEl = document.getElementById('quickTextOnlyBtn');
 const autoRefreshToggleBtnEl = document.getElementById('autoRefreshToggleBtn');
 const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
@@ -395,6 +397,14 @@ function updateQuickMediaBtn(){
   quickMediaBtnEl.classList.toggle('active', active);
   quickMediaBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickMediaBtnEl.textContent = active ? '取消有媒体' : '有媒体';
+}
+
+function updateQuickContentBtn(){
+  if (!quickContentBtnEl) return;
+  const active = currentMediaFilter === 'content';
+  quickContentBtnEl.classList.toggle('active', active);
+  quickContentBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quickContentBtnEl.textContent = active ? '取消含正文' : '含正文';
 }
 
 function updateQuickTodayLinkBtn(){
@@ -1026,6 +1036,7 @@ function applyData(data){
   updateQuickShortSummaryBtn();
   updateQuickEmptySummaryBtn();
   updateQuickMediaBtn();
+  updateQuickContentBtn();
   updateAutoRefreshToggleUi();
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = (!focusModeEnabled && adsHtml) ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
@@ -1286,6 +1297,12 @@ document.addEventListener('keydown', (e) => {
       if (currentData) applyData(currentData);
       showToast(currentMediaFilter === 'today-link' ? '已切到今日可领取' : '已恢复全部内容');
     }
+    if (e.key.toLowerCase() === 'c') {
+      currentMediaFilter = currentMediaFilter === 'content' ? 'all' : 'content';
+      mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+      if (currentData) applyData(currentData);
+      showToast(currentMediaFilter === 'content' ? '已切到含正文内容' : '已恢复全部内容');
+    }
     if (e.key.toLowerCase() === 'p') {
       currentMediaFilter = currentMediaFilter === 'text-only' ? 'all' : 'text-only';
       mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
@@ -1429,6 +1446,17 @@ if (quickMediaBtnEl) {
     if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'has-media' ? '已切到有媒体内容' : '已恢复全部内容');
+  });
+}
+
+
+if (quickContentBtnEl) {
+  quickContentBtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'content' ? 'all' : 'content';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'content' ? '已切到含正文内容' : '已恢复全部内容');
   });
 }
 
