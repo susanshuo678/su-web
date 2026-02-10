@@ -58,6 +58,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="quickClaimBtn" class="search-clear" type="button" aria-label="只看可领取">只看可领</button>
       <button id="quickTodayBtn" class="search-clear" type="button" aria-label="只看今日更新">今日更新</button>
       <button id="quickRecentBtn" class="search-clear" type="button" aria-label="只看近3天更新">近3天</button>
+      <button id="quick14Btn" class="search-clear" type="button" aria-label="只看14天内更新">14天</button>
       <button id="quickNew24Btn" class="search-clear" type="button" aria-label="只看24小时内更新">24h NEW</button>
       <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
@@ -66,7 +67,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
-    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+W 切 24h NEW。</div>
+    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+W 切 24h NEW。</div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
       <button class="filter-chip" data-media="image" type="button">含图片</button>
@@ -159,6 +160,7 @@ const randomPickBtnEl = document.getElementById('randomPickBtn');
 const quickClaimBtnEl = document.getElementById('quickClaimBtn');
 const quickTodayBtnEl = document.getElementById('quickTodayBtn');
 const quickRecentBtnEl = document.getElementById('quickRecentBtn');
+const quick14BtnEl = document.getElementById('quick14Btn');
 const quickNew24BtnEl = document.getElementById('quickNew24Btn');
 const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
 const filterCollapseTipEl = document.getElementById('filterCollapseTip');
@@ -228,6 +230,14 @@ function updateQuickRecentBtn(){
   quickRecentBtnEl.classList.toggle('active', active);
   quickRecentBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickRecentBtnEl.textContent = active ? '取消近3天' : '近3天';
+}
+
+function updateQuick14Btn(){
+  if (!quick14BtnEl) return;
+  const active = currentMediaFilter === 'fresh-14';
+  quick14BtnEl.classList.toggle('active', active);
+  quick14BtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quick14BtnEl.textContent = active ? '取消14天' : '14天';
 }
 
 function updateQuickNew24Btn(){
@@ -752,6 +762,7 @@ function applyData(data){
   updateQuickClaimBtn();
   updateQuickTodayBtn();
   updateQuickRecentBtn();
+  updateQuick14Btn();
   updateQuickNew24Btn();
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = (!focusModeEnabled && adsHtml) ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
@@ -925,6 +936,7 @@ function restoreSearchState(){
   updateQuickClaimBtn();
   updateQuickTodayBtn();
   updateQuickRecentBtn();
+  updateQuick14Btn();
   updateQuickNew24Btn();
 }
 
@@ -1015,6 +1027,15 @@ if (quickRecentBtnEl) {
     if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'fresh-3' ? '已切到近3天更新' : '已恢复全部内容');
+  });
+}
+if (quick14BtnEl) {
+  quick14BtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'fresh-14' ? 'all' : 'fresh-14';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'fresh-14' ? '已切到14天更新' : '已恢复全部内容');
   });
 }
 if (quickNew24BtnEl) {

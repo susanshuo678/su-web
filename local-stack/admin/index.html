@@ -143,6 +143,8 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" type="button" onclick="batchUpdateButtonTextBySearch()">按搜索批量改按钮文案</button>
           <input id="searchSummaryPrefix" placeholder="摘要前缀（如：🔥 今日）" style="max-width:220px"/>
           <button class="btn" type="button" onclick="batchPrefixSummaryBySearch()">按搜索批量加摘要前缀</button>
+          <input id="searchSummarySuffix" placeholder="摘要后缀（如：｜限时）" style="max-width:220px"/>
+          <button class="btn" type="button" onclick="batchSuffixSummaryBySearch()">按搜索批量加摘要后缀</button>
         </div>
         <div class="row" style="margin-bottom:8px">
           <input id="utmSource" placeholder="utm_source（如：telegram）" style="max-width:200px"/>
@@ -1172,6 +1174,24 @@ async function batchPrefixSummaryBySearch(){
     loadRecentCards();
   } catch (e) {
     toast(`摘要前缀处理失败：${e?.message||'网络异常'}`);
+  }
+}
+
+async function batchSuffixSummaryBySearch(){
+  const list = getFilteredCardsBySearch();
+  if(!list.length) return toast('先输入关键词再批量加摘要后缀');
+  const suffix = (document.getElementById('searchSummarySuffix')?.value || '').trim();
+  if(!suffix) return toast('先输入摘要后缀');
+  if(suffix.length > 30) return toast('摘要后缀最多 30 个字符');
+  if(!confirm(`确认为命中的 ${list.length} 张卡片摘要添加后缀「${suffix}」？`)) return;
+  try {
+    const ids = list.map(x=>x.id).filter(Boolean);
+    const r = await req('/api/admin/cards/batch-summary-suffix','POST',{ ids, suffix });
+    toast(`摘要后缀处理完成：更新 ${r.updated||0}/${r.requested||ids.length}`);
+    loadAll();
+    loadRecentCards();
+  } catch (e) {
+    toast(`摘要后缀处理失败：${e?.message||'网络异常'}`);
   }
 }
 
