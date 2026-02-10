@@ -65,6 +65,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="content" type="button">含正文</button>
       <button class="filter-chip" data-media="today" type="button">今日更新</button>
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
+      <button class="filter-chip" data-media="unstarred" type="button">未收藏</button>
       <button id="starLinkFilterChip" class="filter-chip" type="button" aria-label="收藏且可领取">收藏+可领</button>
       <button id="clearStarBtn" class="filter-chip" type="button" aria-label="清空收藏">清空收藏</button>
       <button id="tabScopeToggle" class="filter-chip" type="button" aria-pressed="false">仅看当前栏目</button>
@@ -283,6 +284,7 @@ function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='content') return !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
   if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
   if(mediaFilter==='starred') return isCardStarred(card);
+  if(mediaFilter==='unstarred') return !isCardStarred(card);
   if(mediaFilter==='star-link') return isCardStarred(card) && hasClaimableLink(card);
   return true;
 }
@@ -729,7 +731,7 @@ function restoreSearchState(){
   const hideVisited = params.get('hideVisited') ?? (safeGetLocalStorage('suweb_hide_visited') || '0');
   const claimUnseen = params.get('claimUnseen') ?? (safeGetLocalStorage('suweb_claim_unseen') || '0');
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link','fresh-link','content','today','starred','star-link'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','fresh-link','content','today','starred','unstarred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
   focusModeEnabled = focusMode === '1';
@@ -917,6 +919,14 @@ window.addEventListener('keydown', (e) => {
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'link' ? '已切换到可领取内容' : '已切换到全部内容');
+    return;
+  }
+  if (e.altKey && (e.key === 'n' || e.key === 'N')) {
+    e.preventDefault();
+    currentMediaFilter = currentMediaFilter === 'unstarred' ? 'all' : 'unstarred';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'unstarred' ? '已切换到未收藏内容' : '已切换到全部内容');
     return;
   }
   if (document.activeElement === searchInputEl) return;

@@ -132,6 +132,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <input id="bulkCategoryKey" placeholder="按分类批量启停（category key）"/>
           <button class="btn" type="button" onclick="toggleCardsByCategory(true)">按分类批量启用</button>
           <button class="btn danger" type="button" onclick="toggleCardsByCategory(false)">按分类批量停用</button>
+          <button class="btn ok" type="button" onclick="touchCardsByCategory()">按分类刷新更新时间</button>
         </div>
         <div id="cards"></div>
         <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
@@ -925,6 +926,21 @@ async function toggleCardsByCategory(enabled){
     refreshSummary();
   } catch (e) {
     toast(`分类批量${action}失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function touchCardsByCategory(){
+  const category = (document.getElementById('bulkCategoryKey')?.value || '').trim();
+  if(!category) return toast('先输入分类 key');
+  if(!confirm(`确认将分类 ${category} 下卡片批量刷新更新时间为当前时间？`)) return;
+  try {
+    const r = await req('/api/admin/cards/touch-by-category', 'POST', { category });
+    toast(`分类刷新完成：更新 ${r.updated||0}/${r.total||0}`);
+    loadAll();
+    refreshSummary();
+    loadRecentCards();
+  } catch (e) {
+    toast(`分类刷新失败：${e?.message || '网络异常'}`);
   }
 }
 
