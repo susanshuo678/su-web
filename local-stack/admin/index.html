@@ -82,6 +82,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="checkCardDuplicates()">重复卡片体检</button>
           <button class="btn" onclick="loadCategoryStats()">分类分布统计</button>
           <button class="btn" onclick="loadQualityOverview()">内容质量概览</button>
+          <button class="btn" onclick="loadShortSummaryCards()">短摘要巡检</button>
           <button class="btn" onclick="loadActionabilitySummary()">可领率看板</button>
           <button class="btn" onclick="loadPublishReadiness()">发布就绪检查</button>
           <button class="btn" onclick="exportClaimLinks()">导出可领链接</button>
@@ -147,6 +148,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div id="categoryStatsBox" class="muted" style="margin-top:10px"></div>
         <div id="staleCardsBox" class="muted" style="margin-top:10px"></div>
         <div id="qualityOverviewBox" class="muted" style="margin-top:10px"></div>
+        <div id="shortSummaryBox" class="muted" style="margin-top:10px"></div>
         <div id="actionabilityBox" class="muted" style="margin-top:10px"></div>
         <div id="publishReadinessBox" class="muted" style="margin-top:10px"></div>
         <div id="claimDomainBox" class="muted" style="margin-top:10px"></div>
@@ -377,6 +379,7 @@ async function doLogin(){
       loadWeeklySnapshot();
       loadFreshnessSummary();
       loadQualityOverview();
+      loadShortSummaryCards();
       loadActionabilitySummary();
       loadPublishReadiness();
       restoreActiveView();
@@ -926,7 +929,28 @@ async function loadQualityOverview(){
   }
 }
 
+async function loadShortSummaryCards(){
+  const box = document.getElementById('shortSummaryBox');
+  if (box) box.innerHTML = '短摘要巡检加载中...';
+  try {
+    const r = await req('/api/admin/cards/summary-short?limit=30&maxLen=20', 'GET');
+    const rows = Array.isArray(r.rows) ? r.rows : [];
+    const list = rows.length
+      ? `<ul>${rows.map((x, i)=>`<li>${i+1}. <code>${esc(x.id||'-')}</code> ${esc(x.title||'未命名')} · ${esc(x.category||'-')} · ${esc(String(x.summaryLength||0))}字 · ${x.hasClaim ? '可领' : '无链接'}<br><span class='muted'>${esc(x.summary||'')}</span></li>`).join('')}</ul>`
+      : '<div class="muted">暂无短摘要卡片</div>';
+    if (box) box.innerHTML = `
+      <div>短摘要阈值 ≤ ${esc(String(r.maxLen||20))} 字，命中 ${esc(String(r.total||0))} 条（展示前30条）</div>
+      ${list}
+      <div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('短摘要巡检已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">短摘要巡检加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`短摘要巡检加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
 async function loadQuickInsights(){
+
   const box = document.getElementById('quickInsightsBox');
   if (box) box.innerHTML = '快速洞察加载中...';
   try {

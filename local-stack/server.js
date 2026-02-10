@@ -1532,6 +1532,36 @@ function getCardsFreshnessSummary(limit = 6) {
   return data;
 }
 
+function getCardsShortSummary(limit = 80, maxLen = 20) {
+  const safeLimit = Math.min(300, Math.max(1, Number(limit) || 80));
+  const safeMaxLen = Math.min(120, Math.max(5, Number(maxLen) || 20));
+  const cards = getSortedCollection('cards');
+  const rows = cards
+    .filter(item => item.enabled !== false)
+    .map(item => {
+      const summary = String(item.summary || '').replace(/\s+/g, ' ').trim();
+      if (!summary || summary.length > safeMaxLen) return null;
+      return {
+        id: String(item.id || ''),
+        title: String(item.title || ''),
+        category: String(item.category || ''),
+        summary,
+        summaryLength: summary.length,
+        hasClaim: !!String(item.link || '').trim() && String(item.link || '').trim() !== '#',
+        updatedAt: String(item.updatedAt || item.createdAt || '').trim()
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.summaryLength - b.summaryLength || (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    maxLen: safeMaxLen,
+    total: rows.length,
+    rows: rows.slice(0, safeLimit)
+  };
+}
+
 function getCardsQualityOverview() {
   const ver = getFileVersionKey(FILES.cards);
   if (qualityOverviewCache.data && qualityOverviewCache.ver === ver) return qualityOverviewCache.data;
@@ -2263,6 +2293,13 @@ const backend = http.createServer((req, res) => {
   if (u.pathname === '/api/admin/cards/quality-overview' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (!auth(req,res)) return;
     return sendJsonWithEtag(req, res, getCardsQualityOverview(), 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+  if (u.pathname === '/api/admin/cards/summary-short' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const limit = Math.min(300, Math.max(1, Number(u.searchParams.get('limit') || 80)));
+    const maxLen = Math.min(120, Math.max(5, Number(u.searchParams.get('maxLen') || 20)));
+    return sendJsonWithEtag(req, res, getCardsShortSummary(limit, maxLen), 'private, max-age=2, stale-while-revalidate=10');
   }
 
   if (u.pathname === '/api/admin/cards/publish-readiness' && (req.method === 'GET' || req.method === 'HEAD')) {
