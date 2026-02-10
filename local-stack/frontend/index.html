@@ -65,6 +65,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="quick7ClaimBtn" class="search-clear" type="button" aria-label="只看7天内可领取">7天可领</button>
       <button id="quickResumeBtn" class="search-clear" type="button" aria-label="回到上次浏览">续看</button>
       <button id="quickNew24Btn" class="search-clear" type="button" aria-label="只看24小时内更新">24h NEW</button>
+      <button id="quick48hBtn" class="search-clear" type="button" aria-label="只看48小时内更新">48h NEW</button>
       <button id="quickClaimNew24Btn" class="search-clear" type="button" aria-label="只看可领取且24小时内更新">可领+24h</button>
       <button id="quickClaimRandomBtn" class="search-clear" type="button" aria-label="随机一个可领取">随机可领</button>
       <button id="quickDatedBtn" class="search-clear" type="button" aria-label="只看有更新时间">有更新时间</button>
@@ -76,7 +77,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
-    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+Y 切 7天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+T 切当前栏目范围，Alt+L 续看，Alt+W 切 24h NEW，Alt+D 切 有更新时间，Alt+N 切 可领+24h，Alt+M 开关自动刷新。</div>
+    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+Y 切 7天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+T 切当前栏目范围，Alt+L 续看，Alt+W 切 24h NEW，Alt+E 切 48h NEW，Alt+D 切 有更新时间，Alt+N 切 可领+24h，Alt+M 开关自动刷新。</div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
       <button class="filter-chip" data-media="image" type="button">含图片</button>
@@ -92,6 +93,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="today" type="button">今日更新</button>
       <button class="filter-chip" data-media="today-link" type="button">今日可领</button>
       <button class="filter-chip" data-media="new-24h" type="button">24h NEW</button>
+      <button class="filter-chip" data-media="new-48h" type="button">48h NEW</button>
       <button class="filter-chip" data-media="dated" type="button">有更新时间</button>
       <button class="filter-chip" data-media="summary-short" type="button">短摘要</button>
       <button class="filter-chip" data-media="claim-new24" type="button">可领+24h</button>
@@ -186,6 +188,7 @@ const quickStale30BtnEl = document.getElementById('quickStale30Btn');
 const quick7ClaimBtnEl = document.getElementById('quick7ClaimBtn');
 const quickResumeBtnEl = document.getElementById('quickResumeBtn');
 const quickNew24BtnEl = document.getElementById('quickNew24Btn');
+const quick48hBtnEl = document.getElementById('quick48hBtn');
 const quickClaimNew24BtnEl = document.getElementById('quickClaimNew24Btn');
 const quickClaimRandomBtnEl = document.getElementById('quickClaimRandomBtn');
 const quickDatedBtnEl = document.getElementById('quickDatedBtn');
@@ -301,6 +304,14 @@ function updateQuickNew24Btn(){
   quickNew24BtnEl.classList.toggle('active', active);
   quickNew24BtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickNew24BtnEl.textContent = active ? '取消24h' : '24h NEW';
+}
+
+function updateQuick48hBtn(){
+  if (!quick48hBtnEl) return;
+  const active = currentMediaFilter === 'new-48h';
+  quick48hBtnEl.classList.toggle('active', active);
+  quick48hBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quick48hBtnEl.textContent = active ? '取消48h' : '48h NEW';
 }
 
 function updateQuickClaimNew24Btn(){
@@ -494,6 +505,7 @@ function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
   if(mediaFilter==='today-link') return isSameLocalDay(card?.updatedAt || card?.createdAt) && hasClaimableLink(card);
   if(mediaFilter==='new-24h') return isRecentlyUpdated(card, 1);
+  if(mediaFilter==='new-48h') return isRecentlyUpdated(card, 2);
   if(mediaFilter==='dated'){
     const ts = Date.parse(String(card?.updatedAt || card?.createdAt || ''));
     return Number.isFinite(ts);
@@ -916,6 +928,7 @@ function applyData(data){
   updateQuickStale30Btn();
   updateQuick7ClaimBtn();
   updateQuickNew24Btn();
+  updateQuick48hBtn();
   updateQuickDatedBtn();
   updateQuickClaimNew24Btn();
   updateQuickShortSummaryBtn();
@@ -1099,6 +1112,7 @@ function restoreSearchState(){
   updateQuickStale30Btn();
   updateQuick7ClaimBtn();
   updateQuickNew24Btn();
+  updateQuick48hBtn();
 }
 
 function getAutoRefreshIntervalMs(){
@@ -1230,6 +1244,15 @@ if (quickNew24BtnEl) {
     if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'new-24h' ? '已切到24h NEW' : '已恢复全部内容');
+  });
+}
+if (quick48hBtnEl) {
+  quick48hBtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'new-48h' ? 'all' : 'new-48h';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'new-48h' ? '已切到48h NEW' : '已恢复全部内容');
   });
 }
 if (quickClaimNew24BtnEl) {
@@ -1436,6 +1459,14 @@ window.addEventListener('keydown', (e) => {
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'new-24h' ? '已切换到24h NEW内容' : '已切换到全部内容');
+    return;
+  }
+  if (e.altKey && (e.key === 'e' || e.key === 'E')) {
+    e.preventDefault();
+    currentMediaFilter = currentMediaFilter === 'new-48h' ? 'all' : 'new-48h';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'new-48h' ? '已切换到48h NEW内容' : '已切换到全部内容');
     return;
   }
 

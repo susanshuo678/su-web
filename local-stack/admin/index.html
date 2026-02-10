@@ -63,6 +63,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="loadQuickInsights()">快速洞察</button>
           <button class="btn" onclick="loadWeeklySnapshot()">7天快照</button>
           <button class="btn" onclick="loadFreshnessSummary()">时效分层</button>
+          <button class="btn" onclick="loadUpdatedRange()">更新时间分布</button>
           <button class="btn" onclick="loadBootstrapMeta()">Bootstrap体积</button>
           <button class="btn" onclick="loadRuntimeMetrics()">运行态指标</button>
           <button class="btn" onclick="pruneRuntimeCaches()">缓存瘦身</button>
@@ -141,6 +142,10 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div class="panel" style="margin-top:10px">
           <h4 style="margin:0 0 8px">内容时效分层</h4>
           <div id="freshnessSummaryBox" class="muted">点击“时效分层”查看</div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 8px">更新时间分布（启用卡片）</h4>
+          <div id="updatedRangeBox" class="muted">点击“更新时间分布”查看</div>
         </div>
         <div class="muted" style="margin-top:10px"></div>
         <div id="duplicateCheckBox" class="muted" style="margin-top:10px"></div>
@@ -378,6 +383,7 @@ async function doLogin(){
       loadQuickInsights();
       loadWeeklySnapshot();
       loadFreshnessSummary();
+      loadUpdatedRange();
       loadQualityOverview();
       loadShortSummaryCards();
       loadActionabilitySummary();
@@ -819,6 +825,30 @@ async function loadRecentCards(){
 
 
 
+async function loadUpdatedRange(){
+  const box = document.getElementById('updatedRangeBox');
+  if (box) box.innerHTML = '更新时间分布加载中...';
+  try {
+    const r = await req('/api/admin/cards/updated-range', 'GET');
+    const buckets = r.buckets || {};
+    const html = `
+      <div>启用卡片：<b>${r.enabledTotal||0}</b>，缺少更新时间：${buckets.unknown||0}</div>
+      <ul>
+        <li>24小时内：${buckets.h24||0}</li>
+        <li>24-48小时：${buckets.h48||0}</li>
+        <li>2-7天：${buckets.d7||0}</li>
+        <li>7-14天：${buckets.d14||0}</li>
+        <li>14-30天：${buckets.d30||0}</li>
+        <li>30天以上：${buckets.older||0}</li>
+      </ul>
+      <div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    if (box) box.innerHTML = html;
+    toast('更新时间分布已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">更新时间分布加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`更新时间分布加载失败：${e?.message || '网络异常'}`);
+  }
+}
 
 
 async function loadPublishReadiness(){

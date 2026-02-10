@@ -284,6 +284,8 @@ function invalidateBootstrapCache() {
   actionabilitySummaryCache.ver = '';
   actionabilitySummaryCache.data = null;
   freshnessSummaryCache.clear();
+  updatedRangeCache.ver = '';
+  updatedRangeCache.data = null;
   duplicateReportCache.ver = '';
   duplicateReportCache.data = null;
 }
@@ -441,6 +443,7 @@ const claimLinksCache = new Map();
 const claimDomainStatsCache = new Map();
 const actionabilitySummaryCache = { ver: '', data: null };
 const freshnessSummaryCache = new Map();
+const updatedRangeCache = { ver: '', data: null };
 const duplicateReportCache = { ver: '', data: null };
 
 function backupFilePath(file) {
@@ -1532,6 +1535,40 @@ function getCardsFreshnessSummary(limit = 6) {
   return data;
 }
 
+function getCardsUpdatedRange() {
+  const ver = getFileVersionKey(FILES.cards);
+  if (updatedRangeCache.data && updatedRangeCache.ver === ver) return updatedRangeCache.data;
+
+  const cards = getSortedCollection('cards').filter(x => x.enabled !== false);
+  const nowMs = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const buckets = { h24: 0, h48: 0, d7: 0, d14: 0, d30: 0, older: 0, unknown: 0 };
+
+  for (const item of cards) {
+    const ts = Date.parse(String(item.updatedAt || item.createdAt || ''));
+    if (!Number.isFinite(ts)) {
+      buckets.unknown++;
+      continue;
+    }
+    const ageMs = Math.max(0, nowMs - ts);
+    if (ageMs <= 1 * dayMs) { buckets.h24++; continue; }
+    if (ageMs <= 2 * dayMs) { buckets.h48++; continue; }
+    if (ageMs <= 7 * dayMs) { buckets.d7++; continue; }
+    if (ageMs <= 14 * dayMs) { buckets.d14++; continue; }
+    if (ageMs <= 30 * dayMs) { buckets.d30++; continue; }
+    buckets.older++;
+  }
+
+  const data = {
+    generatedAt: new Date().toISOString(),
+    enabledTotal: cards.length,
+    buckets
+  };
+  updatedRangeCache.ver = ver;
+  updatedRangeCache.data = data;
+  return data;
+}
+
 function getCardsShortSummary(limit = 80, maxLen = 20) {
   const safeLimit = Math.min(300, Math.max(1, Number(limit) || 80));
   const safeMaxLen = Math.min(120, Math.max(5, Number(maxLen) || 20));
@@ -2240,7 +2277,7 @@ const backend = http.createServer((req, res) => {
     if (!auth(req,res)) return;
     const q = String(u.searchParams.get('q') || '').slice(0, 80);
     const category = String(u.searchParams.get('category') || '').slice(0, 40);
-    const limit = Math.min(100, Math.max(1, Number(u.searchParams.get('limit') || 30)));
+    const limit = Math.min(60, Math.max(1, Number(u.searchParams.get('limit') || 30)));
     const data = searchCardsForAdmin(q, category, limit);
     return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
   }
@@ -2288,6 +2325,11 @@ const backend = http.createServer((req, res) => {
     if (!auth(req,res)) return;
     const limit = Math.min(20, Math.max(3, Number(u.searchParams.get('limit') || 6)));
     return sendJsonWithEtag(req, res, getCardsFreshnessSummary(limit), 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+  if (u.pathname === '/api/admin/cards/updated-range' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    return sendJsonWithEtag(req, res, getCardsUpdatedRange(), 'private, max-age=3, stale-while-revalidate=20');
   }
 
   if (u.pathname === '/api/admin/cards/quality-overview' && (req.method === 'GET' || req.method === 'HEAD')) {
