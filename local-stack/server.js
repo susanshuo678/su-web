@@ -234,6 +234,18 @@ function invalidateBootstrapCache() {
   recentCardsCache.clear();
 }
 
+function pruneInternalCaches() {
+  const t = now();
+  for (const [key, value] of cardSearchCache.entries()) {
+    if (!value || !value.ts || (t - value.ts) > CARD_SEARCH_CACHE_TTL_MS * 3) cardSearchCache.delete(key);
+  }
+  // recentCards 使用版本号作为 key，数据更新后旧 key 会积累；定期裁剪避免长期运行内存膨胀
+  if (recentCardsCache.size > 12) {
+    const keys = [...recentCardsCache.keys()];
+    for (let i = 0; i < keys.length - 12; i++) recentCardsCache.delete(keys[i]);
+  }
+}
+
 function pruneTokens() {
   const t = now();
   for (const [token, exp] of tokens) if (exp <= t) tokens.delete(token);
@@ -288,7 +300,8 @@ setInterval(() => {
   pruneTokens();
   pruneLoginAttempts();
   pruneUploadAttempts();
-}, 30 * 60 * 1000).unref();
+  pruneInternalCaches();
+}, 10 * 60 * 1000).unref();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
@@ -874,6 +887,54 @@ function toggleCardsEnabledByCategory(category = '', enabled = true) {
     invalidateBootstrapCache();
   }
   return { updated, total: list.filter(x => String(x.category || '').trim() === cat).length, category: cat, enabled: nextEnabled };
+}
+
+function appendTrackingToUrl(rawUrl, params = {}) {
+  const raw = String(rawUrl || '').trim();
+  if (!raw || raw === '#') return raw;
+  try {
+    const u = new URL(raw);
+    for (const [k, v] of Object.entries(params || {})) {
+      const key = String(k || '').trim();
+      const val = String(v || '').trim();
+      if (!key || !val) continue;
+      u.searchParams.set(key, val);
+    }
+    return u.toString();
+  } catch {
+    return raw;
+  }
+}
+
+function batchAppendTrackingParams(ids = [], source = '', medium = '', campaign = '') {
+  const idSet = new Set(Array.isArray(ids) ? ids.map(x => String(x || '').trim()).filter(Boolean) : []);
+  if (!idSet.size) return { updated: 0, requested: 0 };
+
+  const params = {
+    utm_source: String(source || '').trim().slice(0, 60),
+    utm_medium: String(medium || '').trim().slice(0, 60),
+    utm_campaign: String(campaign || '').trim().slice(0, 80)
+  };
+
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const nowIso = new Date().toISOString();
+  const next = list.map(item => {
+    const id = String(item.id || '');
+    if (!idSet.has(id)) return item;
+    const link = String(item.link || '').trim();
+    if (!link || link === '#') return item;
+    const nextLink = appendTrackingToUrl(link, params);
+    if (nextLink === link) return item;
+    updated++;
+    return { ...item, link: nextLink, updatedAt: nowIso };
+  });
+
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, requested: idSet.size };
 }
 
 function getCardCategoryStats() {
@@ -1520,6 +1581,14 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
         invalidateBootstrapCache();
       }
       return send(res, 200, JSON.stringify({ ok: true, updated, requested: idSet.size, buttonText: nextButtonText }));
+    }).catch((err)=>handleParseError(res, err));
+  }
+
+  if (u.pathname === '/api/admin/cards/batch-append-tracking' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ ids, utmSource, utmMedium, utmCampaign }) => {
+      const result = batchAppendTrackingParams(ids, utmSource, utmMedium, utmCampaign);
+      return send(res, 200, JSON.stringify({ ok: true, ...result }));
     }).catch((err)=>handleParseError(res, err));
   }
 
