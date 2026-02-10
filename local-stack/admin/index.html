@@ -62,6 +62,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="refreshSummary()">刷新统计</button>
           <button class="btn" onclick="loadBootstrapMeta()">Bootstrap体积</button>
           <button class="btn" onclick="loadRuntimeMetrics()">运行态指标</button>
+          <button class="btn" onclick="pruneRuntimeCaches()">缓存瘦身</button>
           <button class="btn" onclick="exportAllData()">导出数据JSON</button>
           <input id="exportCategoryKey" placeholder="导出分类key（可选）" style="max-width:220px"/>
           <button class="btn" onclick="exportCategoryData()">导出分类JSON</button>
@@ -71,6 +72,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="runHealthCheck()">健康检查</button>
           <button class="btn" onclick="auditCardSummaries()">摘要体检</button>
           <button class="btn ok" onclick="normalizeCardSummaries()">摘要一键规范化</button>
+          <button class="btn ok" onclick="normalizeCardTitles()">标题一键规范化</button>
           <button class="btn ok" onclick="normalizeAllOrders()">统一重排顺序</button>
           <button class="btn" onclick="checkCardDuplicates()">重复卡片体检</button>
           <button class="btn" onclick="loadCategoryStats()">分类分布统计</button>
@@ -631,6 +633,31 @@ async function normalizeCardSummaries(){
     loadAll();
   } catch (e) {
     toast(`摘要规范化失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function normalizeCardTitles(){
+  if(!confirm('确认统一规范卡片标题？会自动去除多余空白与连续标点。')) return;
+  try {
+    const r = await req('/api/admin/cards/title-normalize', 'POST', {});
+    toast(`标题规范化完成：更新 ${r.updated||0}/${r.total||0}`);
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`标题规范化失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function pruneRuntimeCaches(){
+  if(!confirm('确认执行缓存瘦身？会清理多余缓存桶，不影响业务数据。')) return;
+  try {
+    const r = await req('/api/admin/runtime-prune-caches', 'POST', {});
+    const b = r.before || {};
+    const a = r.after || {};
+    toast(`缓存瘦身完成：json ${b.jsonRead||0}->${a.jsonRead||0}，gzip ${b.staticGzip||0}->${a.staticGzip||0}`);
+    await loadRuntimeMetrics();
+  } catch (e) {
+    toast(`缓存瘦身失败：${e?.message || '网络异常'}`);
   }
 }
 

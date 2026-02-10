@@ -64,6 +64,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
+    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目。</div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
       <button class="filter-chip" data-media="image" type="button">含图片</button>
@@ -179,6 +180,8 @@ let hideVisitedEnabled = false;
 let claimUnseenEnabled = false;
 const STAR_KEY = 'suweb_starred_cards';
 const VISITED_KEY = 'suweb_visited_cards';
+const STAR_SET_MAX = 300;
+const VISITED_SET_MAX = 800;
 const SANITIZE_CACHE_LIMIT = 120;
 const sanitizeCache = new Map();
 let refreshFailCount = 0;
@@ -246,8 +249,10 @@ function getStarSet(){
 }
 
 function saveStarSet(set){
-  starSetCache = new Set(set);
-  try { localStorage.setItem(STAR_KEY, JSON.stringify([...set])); } catch {}
+  const list = [...set].map(x => String(x || '').trim()).filter(Boolean);
+  const trimmed = list.slice(-STAR_SET_MAX);
+  starSetCache = new Set(trimmed);
+  try { localStorage.setItem(STAR_KEY, JSON.stringify(trimmed)); } catch {}
   updateStarChipLabel();
 }
 
@@ -277,8 +282,10 @@ function getVisitedSet(){
 }
 
 function saveVisitedSet(set){
-  visitedSetCache = new Set(set);
-  try { localStorage.setItem(VISITED_KEY, JSON.stringify([...set])); } catch {}
+  const list = [...set].map(x => String(x || '').trim()).filter(Boolean);
+  const trimmed = list.slice(-VISITED_SET_MAX);
+  visitedSetCache = new Set(trimmed);
+  try { localStorage.setItem(VISITED_KEY, JSON.stringify(trimmed)); } catch {}
 }
 
 function markCardVisited(cardId){
@@ -921,6 +928,27 @@ if (clearSearchBtnEl) {
     searchInputEl.focus();
   });
 }
+
+document.addEventListener('keydown', (e) => {
+  const tag = String(e.target?.tagName || '').toLowerCase();
+  const editing = tag === 'input' || tag === 'textarea' || e.target?.isContentEditable;
+  if (e.key === '/' && !editing) {
+    e.preventDefault();
+    searchInputEl?.focus();
+    searchInputEl?.select?.();
+    return;
+  }
+  if (e.key.toLowerCase() === 'r' && e.shiftKey && !editing) {
+    e.preventDefault();
+    manualRefresh();
+    return;
+  }
+  if (e.altKey && !editing) {
+    if (e.key === '1') document.querySelector(".nav-btn[onclick*='help']")?.click();
+    if (e.key === '2') document.querySelector(".nav-btn[onclick*='hang']")?.click();
+    if (e.key === '3') document.querySelector(".nav-btn[onclick*='bots']")?.click();
+  }
+});
 if (resetFilterBtnEl) {
   resetFilterBtnEl.addEventListener('click', resetFilters);
 }

@@ -1346,6 +1346,72 @@ function fillMissingCategory() {
   return { updated, total: list.length, category: 'all' };
 }
 
+
+function normalizeCardTitles() {
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const nowIso = new Date().toISOString();
+  const next = list.map(item => {
+    const raw = String(item.title || '');
+    const normalized = raw
+      .replace(/[\t\n\r]+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/([!?！？。,.，])\1{1,}/g, '$1')
+      .trim()
+      .slice(0, 120);
+    if (normalized === raw) return item;
+    updated++;
+    return { ...item, title: normalized, updatedAt: nowIso };
+  });
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, total: list.length };
+}
+
+function pruneAllRuntimeCaches() {
+  const before = {
+    jsonRead: jsonReadCache.size,
+    sortedCollection: sortedCollectionCache.size,
+    cardSearch: cardSearchCache.size,
+    recentCards: recentCardsCache.size,
+    staticGzip: staticGzipCache.size,
+    staticBr: staticBrCache.size,
+    tokens: tokens.size,
+    loginBuckets: loginAttempts.size,
+    uploadBuckets: uploadAttempts.size
+  };
+  pruneTokens();
+  pruneLoginAttempts();
+  pruneUploadAttempts();
+  pruneInternalCaches();
+  if (jsonReadCache.size > 12) {
+    const keys = [...jsonReadCache.keys()];
+    for (let i = 0; i < keys.length - 12; i++) jsonReadCache.delete(keys[i]);
+  }
+  if (staticGzipCache.size > 32) {
+    const keys = [...staticGzipCache.keys()];
+    for (let i = 0; i < keys.length - 32; i++) staticGzipCache.delete(keys[i]);
+  }
+  if (staticBrCache.size > 32) {
+    const keys = [...staticBrCache.keys()];
+    for (let i = 0; i < keys.length - 32; i++) staticBrCache.delete(keys[i]);
+  }
+  const after = {
+    jsonRead: jsonReadCache.size,
+    sortedCollection: sortedCollectionCache.size,
+    cardSearch: cardSearchCache.size,
+    recentCards: recentCardsCache.size,
+    staticGzip: staticGzipCache.size,
+    staticBr: staticBrCache.size,
+    tokens: tokens.size,
+    loginBuckets: loginAttempts.size,
+    uploadBuckets: uploadAttempts.size
+  };
+  return { before, after, prunedAt: new Date().toISOString() };
+}
+
 function fillMissingButtonText() {
   const list = readJson(FILES.cards, []);
   let updated = 0;
@@ -2027,6 +2093,18 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
   if (u.pathname === '/api/admin/cards/fill-category' && req.method === 'POST') {
     if (!auth(req,res)) return;
     const result = fillMissingCategory();
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
+  }
+
+  if (u.pathname === '/api/admin/cards/title-normalize' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = normalizeCardTitles();
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
+  }
+
+  if (u.pathname === '/api/admin/runtime-prune-caches' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = pruneAllRuntimeCaches();
     return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 
