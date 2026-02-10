@@ -62,6 +62,7 @@
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
       <button id="clearStarBtn" class="filter-chip" type="button" aria-label="清空收藏">清空收藏</button>
       <button id="tabScopeToggle" class="filter-chip" type="button" aria-pressed="false">仅看当前栏目</button>
+      <button id="recentSortToggle" class="filter-chip" type="button" aria-pressed="false">最近更新优先</button>
       <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
     </div>
   </div>
@@ -119,6 +120,7 @@ const searchInputEl = document.getElementById('cardSearch');
 const resultMetaEl = document.getElementById('resultMeta');
 const mediaFilterEls = [...document.querySelectorAll('.filter-chip[data-media]')];
 const tabScopeToggleEl = document.getElementById('tabScopeToggle');
+const recentSortToggleEl = document.getElementById('recentSortToggle');
 const clearSearchBtnEl = document.getElementById('clearSearchBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
 const clearStarBtnEl = document.getElementById('clearStarBtn');
@@ -127,6 +129,7 @@ let currentData = null;
 let currentQuery = '';
 let currentMediaFilter = 'all';
 let strictTabScope = false;
+let recentSortEnabled = false;
 const STAR_KEY = 'suweb_starred_cards';
 const SANITIZE_CACHE_LIMIT = 120;
 const sanitizeCache = new Map();
@@ -306,7 +309,7 @@ function sanitizeHtml(html=''){
 
 function renderShortcuts(list=[]){if(!list.length) return '<p class="empty">暂无快捷入口</p>';return `<div class="grid4">${list.map(x=>`<a class="shortcut" href="${esc(safeUrl(x.link,'#'))}" target="_blank" rel="noopener noreferrer"><div class="icon">${x.icon?`<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(x.icon,''))}" alt="">`:'⚡'}</div><span>${esc(x.name||'入口')}</span></a>`).join('')}</div>`;}
 function renderAds(list=[]){if(!list.length) return ''; const top=list[0]; return `<a class="ad" href="${esc(safeUrl(top.link,'#'))}" target="_blank" rel="noopener noreferrer">${top.image?`<img loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(top.image,''))}" alt="">`:''}<span class="t">${esc(top.title||'推荐')}</span></a>`;}
-function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>{const safeLink=safeUrl(c.link,'#');const hasLink=!!(c.link&&c.link!=='#'&&safeLink!=='#');const starred=isCardStarred(c);const cardId=esc(c.id||'');return `<article class="card item" data-card-id="${cardId}"><h3>${highlightText(c.title||'未命名', currentQuery)}</h3><p class="sub">${highlightText(c.summary||'', currentQuery)}</p>${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}<div class="card-actions">${hasLink?`<a class="btn" href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a><button class="btn-lite" type="button" onclick="copyCardLink('${esc(safeLink)}')">复制链接</button>`:''}<button class="btn-lite" type="button" onclick="toggleCardStar('${cardId}')">${starred?'★ 已收藏':'☆ 收藏'}</button></div></article>`;}).join('')}</div>`;}
+function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>{const safeLink=safeUrl(c.link,'#');const hasLink=!!(c.link&&c.link!=='#'&&safeLink!=='#');const starred=isCardStarred(c);const cardId=esc(c.id||'');const updatedRaw=String(c.updatedAt||c.createdAt||'').trim();const updatedText=updatedRaw?new Date(updatedRaw).toLocaleString('zh-CN',{hour12:false}):'';return `<article class="card item" data-card-id="${cardId}"><h3>${highlightText(c.title||'未命名', currentQuery)}</h3><p class="sub">${highlightText(c.summary||'', currentQuery)}</p>${updatedText?`<p class="sub" style="margin-top:4px;font-size:12px">更新于：${esc(updatedText)}</p>`:''}${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}<div class="card-actions">${hasLink?`<a class="btn" href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a><button class="btn-lite" type="button" onclick="copyCardLink('${esc(safeLink)}')">复制链接</button>`:''}<button class="btn-lite" type="button" onclick="toggleCardStar('${cardId}')">${starred?'★ 已收藏':'☆ 收藏'}</button></div></article>`;}).join('')}</div>`;}
 
 let bootstrapInFlight = null;
 let bootstrapCtrl = null;
@@ -439,15 +442,25 @@ function applyData(data){
   lastRenderKey = renderKey;
 
   const tabs=currentData.tabs||[]; tabHelpEl.textContent=tabs[0]?.name||'助力'; tabHangEl.textContent=tabs[1]?.name||'代挂'; tabBotsEl.textContent=tabs[2]?.name||'机器人列表';
-  const cards=(currentData.cards||[]).filter(c=>matchesQuery(c, currentQuery) && matchesMediaFilter(c, currentMediaFilter));
+  const cards=(currentData.cards||[])
+    .filter(c=>matchesQuery(c, currentQuery) && matchesMediaFilter(c, currentMediaFilter))
+    .sort((a,b)=>{
+      if (!recentSortEnabled) return 0;
+      const ta = Date.parse(String(a?.updatedAt || a?.createdAt || '')) || 0;
+      const tb = Date.parse(String(b?.updatedAt || b?.createdAt || '')) || 0;
+      if (tb !== ta) return tb - ta;
+      return (Number(a?.order)||9999) - (Number(b?.order)||9999);
+    });
   if (resultMetaEl) {
     const scopeText = strictTabScope ? '当前栏目' : '跨栏目';
     const mediaText = currentMediaFilter === 'all' ? '全部类型' : currentMediaFilter;
-    resultMetaEl.textContent = `${cards.length} 条 · ${scopeText} · ${mediaText}`;
+    const sortText = recentSortEnabled ? '最近更新优先' : '默认排序';
+    resultMetaEl.textContent = `${cards.length} 条 · ${scopeText} · ${mediaText} · ${sortText}`;
   }
   safeSetLocalStorage('suweb_search_query', currentQuery);
   safeSetLocalStorage('suweb_media_filter', currentMediaFilter);
   safeSetLocalStorage('suweb_strict_tab_scope', strictTabScope ? '1' : '0');
+  safeSetLocalStorage('suweb_recent_sort', recentSortEnabled ? '1' : '0');
   const tabKeys=[(tabs[0]?.key||'help').trim()||'help',(tabs[1]?.key||'hang').trim()||'hang',(tabs[2]?.key||'bots').trim()||'bots'];
   const inTab=(c,key)=>{ const cat=(c.category||'all').trim(); return cat==='all' || cat===key; };
   const list1=cards.filter(c=>inTab(c,tabKeys[0]));
@@ -557,14 +570,20 @@ function restoreSearchState(){
   const q = safeGetLocalStorage('suweb_search_query') || '';
   const media = safeGetLocalStorage('suweb_media_filter') || 'all';
   const strictScope = safeGetLocalStorage('suweb_strict_tab_scope') || '0';
+  const recentSort = safeGetLocalStorage('suweb_recent_sort') || '0';
   currentQuery = String(q).trim().toLowerCase();
   currentMediaFilter = ['all','image','video','link','content','starred'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
+  recentSortEnabled = recentSort === '1';
   if (searchInputEl) searchInputEl.value = currentQuery;
   mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
   if (tabScopeToggleEl) {
     tabScopeToggleEl.classList.toggle('active', strictTabScope);
     tabScopeToggleEl.setAttribute('aria-pressed', strictTabScope ? 'true' : 'false');
+  }
+  if (recentSortToggleEl) {
+    recentSortToggleEl.classList.toggle('active', recentSortEnabled);
+    recentSortToggleEl.setAttribute('aria-pressed', recentSortEnabled ? 'true' : 'false');
   }
 }
 
@@ -660,6 +679,15 @@ if (tabScopeToggleEl) {
     tabScopeToggleEl.classList.toggle('active', strictTabScope);
     tabScopeToggleEl.setAttribute('aria-pressed', strictTabScope ? 'true' : 'false');
     if (currentData) applyData(currentData);
+  });
+}
+if (recentSortToggleEl) {
+  recentSortToggleEl.addEventListener('click', () => {
+    recentSortEnabled = !recentSortEnabled;
+    recentSortToggleEl.classList.toggle('active', recentSortEnabled);
+    recentSortToggleEl.setAttribute('aria-pressed', recentSortEnabled ? 'true' : 'false');
+    if (currentData) applyData(currentData);
+    showToast(recentSortEnabled ? '已切换：最近更新优先' : '已切换：默认排序');
   });
 }
 if (toTopBtnEl) {

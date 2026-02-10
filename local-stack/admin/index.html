@@ -91,6 +91,13 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <p id="quickSearchMeta" class="muted" style="margin:6px 0 0">输入关键词后可快速跳转到卡片编辑。</p>
           <div id="quickSearchList" class="muted" style="margin-top:8px"></div>
         </div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 8px">最近变更卡片</h4>
+          <div class="row" style="margin-bottom:8px">
+            <button class="btn" type="button" onclick="loadRecentCards()">刷新最近变更</button>
+          </div>
+          <div id="recentCardsBox" class="muted">暂无数据</div>
+        </div>
         <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
         <div id="duplicateCheckBox" class="muted" style="margin-top:10px"></div>
         <div id="categoryStatsBox" class="muted" style="margin-top:10px"></div>
@@ -271,6 +278,7 @@ async function doLogin(){
       loadAll();
       refreshSummary();
       loadCategoryStats();
+      loadRecentCards();
       restoreActiveView();
       toast('登录成功');
     } catch(e) {
@@ -600,6 +608,27 @@ async function loadCategoryStats(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">分类统计失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`分类统计失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function loadRecentCards(){
+  const box = document.getElementById('recentCardsBox');
+  if (box) box.innerHTML = '最近变更加载中...';
+  try {
+    const r = await req('/api/admin/cards/recent?limit=8', 'GET');
+    const items = Array.isArray(r.items) ? r.items : [];
+    if (!items.length) {
+      if (box) box.innerHTML = '暂无最近变更记录';
+      return;
+    }
+    const list = items.map(x => {
+      const ts = x.updatedAt ? new Date(x.updatedAt).toLocaleString('zh-CN', { hour12: false }) : '-';
+      return `<li><code>${esc(x.id||'')}</code> · ${esc(x.title||'未命名')} · 分类:${esc(x.category||'-')} · ${x.enabled===false?'停用':'启用'} · ${esc(ts)} <button class='btn' type='button' onclick="jumpToCard('${esc(x.id||'')}')">定位</button></li>`;
+    }).join('');
+    if (box) box.innerHTML = `<div>共 ${r.total || 0} 张卡片，以下展示最近 ${items.length} 条：</div><ul>${list}</ul>`;
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">最近变更加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`最近变更加载失败：${e?.message || '网络异常'}`);
   }
 }
 
