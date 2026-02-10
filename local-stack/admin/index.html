@@ -63,6 +63,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="validateLinks()">链接体检</button>
           <button class="btn ok" onclick="quickFixLinks()">一键修复非法链接</button>
           <button class="btn" onclick="runHealthCheck()">健康检查</button>
+          <button class="btn ok" onclick="normalizeAllOrders()">统一重排顺序</button>
           <span id="summaryMeta" class="muted"></span>
         </div>
         <div class="stats">
@@ -486,6 +487,21 @@ async function resequenceCardsByCurrentView(){
     refreshSummary();
   } catch (e) {
     toast(`重排失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function normalizeAllOrders(){
+  if(!confirm('确认统一重排 ads/shortcuts/tabs/cards 的顺序字段？会按当前排序重写为 10,20,30...')) return;
+  try {
+    const r = await req('/api/admin/normalize-orders', 'POST', {});
+    const msgText = `统一重排完成：ads ${r.ads?.updated||0}/${r.ads?.total||0}，shortcuts ${r.shortcuts?.updated||0}/${r.shortcuts?.total||0}，tabs ${r.tabs?.updated||0}/${r.tabs?.total||0}，cards ${r.cards?.updated||0}/${r.cards?.total||0}`;
+    toast(msgText);
+    const box = document.getElementById('linkCheckBox');
+    if (box) box.textContent = msgText;
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`统一重排失败：${e?.message || '网络异常'}`);
   }
 }
 

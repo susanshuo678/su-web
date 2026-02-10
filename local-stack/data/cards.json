@@ -9,7 +9,7 @@
     "video": "",
     "category": "help",
     "buttonText": "查看",
-    "order": 1,
+    "order": 10,
     "enabled": true
   },
   {
@@ -22,7 +22,7 @@
     "video": "",
     "category": "hang",
     "buttonText": "查看",
-    "order": 2,
+    "order": 20,
     "enabled": true
   },
   {
@@ -35,7 +35,7 @@
     "video": "",
     "category": "bots",
     "buttonText": "查看",
-    "order": 3,
+    "order": 30,
     "enabled": true
   }
 ]

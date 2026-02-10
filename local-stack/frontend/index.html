@@ -25,6 +25,8 @@
 .refresh{position:fixed;right:14px;bottom:94px;background:#1f4fd6;color:#fff;border:0;border-radius:999px;padding:10px 12px;font-size:12px;box-shadow:var(--shadow)}
 .refresh.offline{background:#8a95ad}
 .sync-time{position:fixed;right:14px;bottom:74px;color:#5d6b88;font-size:11px;background:rgba(255,255,255,.88);padding:3px 8px;border-radius:999px;border:1px solid var(--line)}
+.sync-state{position:fixed;right:14px;bottom:52px;color:#4f607f;font-size:11px;background:rgba(255,255,255,.88);padding:3px 8px;border-radius:999px;border:1px solid var(--line);max-width:70vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sync-state.error{color:#9e2f2f;border-color:#f0b5b5;background:#fff2f2}
 .search-wrap{position:sticky;top:8px;z-index:30;background:rgba(246,248,252,.92);backdrop-filter:blur(4px);padding:6px 0 8px}
 .search-row{display:flex;gap:8px;align-items:center}.search{flex:1;width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-size:14px;background:#fff}.search-clear{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;color:#4f607f;font-size:12px;cursor:pointer}
 .filter-row{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -53,6 +55,7 @@
       <button class="filter-chip" data-media="image" type="button">含图片</button>
       <button class="filter-chip" data-media="video" type="button">含视频</button>
       <button class="filter-chip" data-media="link" type="button">可领取</button>
+      <button id="tabScopeToggle" class="filter-chip" type="button" aria-pressed="false">仅看当前栏目</button>
       <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
     </div>
   </div>
@@ -64,6 +67,7 @@
 <button id="refreshBtn" class="refresh" aria-label="刷新内容" title="刷新内容" onclick="manualRefresh()">刷新内容</button>
 <button id="toTopBtn" class="to-top" aria-label="回到顶部" title="回到顶部">回顶部</button>
 <div id="syncTime" class="sync-time" aria-live="polite">尚未同步</div>
+<div id="syncState" class="sync-state" aria-live="polite">等待首次同步</div>
 <nav class="bottom"><div class="inner">
   <button class="nav-btn active" aria-current="page" aria-label="助力" onclick="switchTab('help',this)">🧩<span id="tab-help">助力</span></button>
   <button class="nav-btn" aria-label="代挂" onclick="switchTab('hang',this)">📌<span id="tab-hang">代挂</span></button>
@@ -94,11 +98,14 @@ const refreshBtnEl = document.getElementById('refreshBtn');
 const toTopBtnEl = document.getElementById('toTopBtn');
 const searchInputEl = document.getElementById('cardSearch');
 const resultMetaEl = document.getElementById('resultMeta');
-const mediaFilterEls = [...document.querySelectorAll('.filter-chip')];
+const mediaFilterEls = [...document.querySelectorAll('.filter-chip[data-media]')];
+const tabScopeToggleEl = document.getElementById('tabScopeToggle');
 const clearSearchBtnEl = document.getElementById('clearSearchBtn');
+const syncStateEl = document.getElementById('syncState');
 let currentData = null;
 let currentQuery = '';
 let currentMediaFilter = 'all';
+let strictTabScope = false;
 let refreshFailCount = 0;
 const REFRESH_FAIL_CAP = 4;
 function matchesQuery(card, query){
@@ -257,6 +264,12 @@ function updateSyncTime(ts = Date.now()){
   el.textContent = `已同步 ${hh}:${mm}:${ss}`;
 }
 
+function updateSyncState(text, isError = false){
+  if (!syncStateEl) return;
+  syncStateEl.textContent = text;
+  syncStateEl.classList.toggle('error', !!isError);
+}
+
 function applyData(data){
   currentData = data || {};
   const renderKey = renderFingerprint(currentData);
@@ -271,6 +284,7 @@ function applyData(data){
   if (resultMetaEl) resultMetaEl.textContent = `${cards.length} 条内容`;
   safeSetLocalStorage('suweb_search_query', currentQuery);
   safeSetLocalStorage('suweb_media_filter', currentMediaFilter);
+  safeSetLocalStorage('suweb_strict_tab_scope', strictTabScope ? '1' : '0');
   const tabKeys=[(tabs[0]?.key||'help').trim()||'help',(tabs[1]?.key||'hang').trim()||'hang',(tabs[2]?.key||'bots').trim()||'bots'];
   const inTab=(c,key)=>{ const cat=(c.category||'all').trim(); return cat==='all' || cat===key; };
   const list1=cards.filter(c=>inTab(c,tabKeys[0]));
@@ -279,9 +293,12 @@ function applyData(data){
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = adsHtml ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
   const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p></section>' : '';
-  pageHelpEl.innerHTML=`<section class="card"><span class="badge">快捷入口</span>${renderShortcuts(currentData.shortcuts||[])}</section>${adsSection}${noResult || renderCards(list1.length?list1:cards.slice(0,4))}`;
-  pageHangEl.innerHTML=renderCards(list2.length?list2:cards.slice(0,3));
-  pageBotsEl.innerHTML=renderCards(list3.length?list3:cards.slice(0,3));
+  const helpCards = strictTabScope ? list1 : (list1.length ? list1 : cards.slice(0,4));
+  const hangCards = strictTabScope ? list2 : (list2.length ? list2 : cards.slice(0,3));
+  const botsCards = strictTabScope ? list3 : (list3.length ? list3 : cards.slice(0,3));
+  pageHelpEl.innerHTML=`<section class="card"><span class="badge">快捷入口</span>${renderShortcuts(currentData.shortcuts||[])}</section>${adsSection}${noResult || renderCards(helpCards)}`;
+  pageHangEl.innerHTML=renderCards(hangCards);
+  pageBotsEl.innerHTML=renderCards(botsCards);
   updateSyncTime();
 }
 
@@ -329,6 +346,7 @@ async function init(force=false){
           staleNoticeEl.style.display='none';
           applyData(parsed.data);
           updateSyncTime(parsed.ts || Date.now());
+          updateSyncState('内容已同步（命中缓存）');
           bootstrapAppliedSeq = reqSeq;
           return;
         } catch {
@@ -341,15 +359,19 @@ async function init(force=false){
       safeSetLocalStorage('suweb_bootstrap_cache', JSON.stringify({ts:Date.now(),data}));
       staleNoticeEl.style.display='none'; applyData(data);
       refreshFailCount = 0;
+      updateSyncState('内容已同步');
       bootstrapAppliedSeq = reqSeq;
     }catch(e){
       if (e?.name === 'AbortError') return;
       if (cacheShown) {
         staleNoticeEl.style.display='block';
+        updateSyncState('网络波动，当前展示离线缓存', true);
         return;
       }
-      if(cache){ try{ const parsed=JSON.parse(cache); applyData(parsed.data); staleNoticeEl.style.display='block'; return; }catch{} }
+      if(cache){ try{ const parsed=JSON.parse(cache); applyData(parsed.data); staleNoticeEl.style.display='block'; updateSyncState('网络波动，当前展示离线缓存', true); return; }catch{} }
       refreshFailCount = Math.min(REFRESH_FAIL_CAP, refreshFailCount + 1);
+      const waitSec = Math.floor(getAutoRefreshIntervalMs() / 1000);
+      updateSyncState(`拉取失败，约 ${waitSec}s 后自动重试`, true);
       pageHelpEl.innerHTML='<section class="card"><p class="empty">加载失败，请稍后重试。</p></section>';
     } finally {
       if (btn && force) {
@@ -371,10 +393,16 @@ async function init(force=false){
 function restoreSearchState(){
   const q = safeGetLocalStorage('suweb_search_query') || '';
   const media = safeGetLocalStorage('suweb_media_filter') || 'all';
+  const strictScope = safeGetLocalStorage('suweb_strict_tab_scope') || '0';
   currentQuery = String(q).trim().toLowerCase();
   currentMediaFilter = ['all','image','video','link'].includes(media) ? media : 'all';
+  strictTabScope = strictScope === '1';
   if (searchInputEl) searchInputEl.value = currentQuery;
   mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+  if (tabScopeToggleEl) {
+    tabScopeToggleEl.classList.toggle('active', strictTabScope);
+    tabScopeToggleEl.setAttribute('aria-pressed', strictTabScope ? 'true' : 'false');
+  }
 }
 
 function getAutoRefreshIntervalMs(){
@@ -426,6 +454,14 @@ if (mediaFilterEls.length) {
     });
   });
 }
+if (tabScopeToggleEl) {
+  tabScopeToggleEl.addEventListener('click', () => {
+    strictTabScope = !strictTabScope;
+    tabScopeToggleEl.classList.toggle('active', strictTabScope);
+    tabScopeToggleEl.setAttribute('aria-pressed', strictTabScope ? 'true' : 'false');
+    if (currentData) applyData(currentData);
+  });
+}
 if (toTopBtnEl) {
   toTopBtnEl.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
   window.addEventListener('scroll', () => {
@@ -469,6 +505,7 @@ document.addEventListener('visibilitychange', () => {
 // 网络恢复后自动静默刷新，减少离线后回网仍停留旧内容的时间
 window.addEventListener('online', () => {
   updateNetworkUi();
+  updateSyncState('网络已恢复，正在刷新内容');
   lastAutoRefreshAt = Date.now();
   init();
 });
@@ -476,6 +513,7 @@ window.addEventListener('online', () => {
 window.addEventListener('offline', () => {
   updateNetworkUi();
   staleNoticeEl.style.display = 'block';
+  updateSyncState('当前离线，展示缓存内容', true);
 });
 
 function shouldSkipAutoRefresh(){

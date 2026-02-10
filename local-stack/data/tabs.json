@@ -3,18 +3,18 @@
     "id": "t-1",
     "name": "助力",
     "key": "help",
-    "order": 1
+    "order": 10
   },
   {
     "id": "t-2",
     "name": "代挂",
     "key": "hang",
-    "order": 2
+    "order": 20
   },
   {
     "id": "t-3",
     "name": "机器人列表",
     "key": "bots",
-    "order": 3
+    "order": 30
   }
 ]

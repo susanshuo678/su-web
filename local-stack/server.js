@@ -260,6 +260,20 @@ function backupFilePath(file) {
   return `${file}.bak`;
 }
 
+function rotateBackups(file) {
+  const bak1 = backupFilePath(file);
+  const bak2 = `${bak1}.2`;
+  const bak3 = `${bak1}.3`;
+  try {
+    if (fs.existsSync(bak2)) {
+      try { fs.copyFileSync(bak2, bak3); } catch {}
+    }
+    if (fs.existsSync(bak1)) {
+      try { fs.copyFileSync(bak1, bak2); } catch {}
+    }
+  } catch {}
+}
+
 function readJson(file, fallback) {
   try {
     const stat = fs.statSync(file);
@@ -279,10 +293,14 @@ function readJson(file, fallback) {
     // 稳定性优化：主文件损坏时尝试从 .bak 自动恢复，避免前台/后台整体空白
     try {
       const backup = backupFilePath(file);
-      if (fs.existsSync(backup)) {
-        const parsed = JSON.parse(fs.readFileSync(backup, 'utf8'));
-        writeJson(file, parsed);
-        return parsed;
+      const candidates = [backup, `${backup}.2`, `${backup}.3`];
+      for (const candidate of candidates) {
+        if (!fs.existsSync(candidate)) continue;
+        try {
+          const parsed = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+          writeJson(file, parsed);
+          return parsed;
+        } catch {}
       }
     } catch {}
     if (err && err.name === 'SyntaxError') {
@@ -296,6 +314,7 @@ function writeJson(file, data) {
   const backup = backupFilePath(file);
   const content = JSON.stringify(data, null, 2);
   if (fs.existsSync(file)) {
+    rotateBackups(file);
     try { fs.copyFileSync(file, backup); } catch {}
   }
   fs.writeFileSync(tmp, content, 'utf8');
@@ -893,6 +912,17 @@ const backend = http.createServer((req, res) => {
       const result = resequenceCollection(key, ids);
       return send(res, 200, JSON.stringify({ ok: true, collection: key, ...result }));
     }).catch((err)=>handleParseError(res, err));
+  }
+
+  if (u.pathname === '/api/admin/normalize-orders' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = {
+      ads: resequenceCollection('ads'),
+      shortcuts: resequenceCollection('shortcuts'),
+      tabs: resequenceCollection('tabs'),
+      cards: resequenceCollection('cards')
+    };
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 
   if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {

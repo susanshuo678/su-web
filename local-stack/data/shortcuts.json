@@ -4,13 +4,13 @@
     "name": "美团外卖",
     "icon": "",
     "link": "#",
-    "order": 1
+    "order": 10
   },
   {
     "id": "s-2",
     "name": "饿了么",
     "icon": "",
     "link": "#",
-    "order": 2
+    "order": 20
   }
 ]
