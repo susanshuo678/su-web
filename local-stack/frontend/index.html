@@ -81,11 +81,12 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="copyAllLinksBtn" class="search-clear" type="button" aria-label="复制全部可领链接">复制可领</button>
+      <button id="copyClaimTitleLinksBtn" class="search-clear" type="button" aria-label="复制可领标题+链接">可领标题+链接</button>
       <button id="exportVisibleBtn" class="search-clear" type="button" aria-label="导出当前筛选JSON">导出JSON</button>
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
-    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+Y 切 7天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+T 切当前栏目范围，Alt+L 续看，Alt+W 切 24h NEW，Alt+E 切 48h NEW，Alt+D 切 有更新时间，Alt+N 切 可领+24h，Alt+Q 切 可领+48h，Alt+K 切 可领+摘要，Alt+X 切 空摘要，Alt+M 开关自动刷新，Alt+U 切今日可领，Alt+C 切含正文，Alt+P 切纯文本。</div>
+    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+Y 切 7天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+T 切当前栏目范围，Alt+L 续看，Alt+W 切 24h NEW，Alt+E 切 48h NEW，Alt+D 切 有更新时间，Alt+N 切 可领+24h，Alt+Q 切 可领+48h，Alt+K 切 可领+摘要，Alt+X 切 空摘要，Alt+M 开关自动刷新，Alt+U 切今日可领，Alt+C 切含正文，Alt+P 切纯文本，Alt+B 复制可领标题+链接。</div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
       <button class="filter-chip" data-media="image" type="button">含图片</button>
@@ -219,6 +220,7 @@ const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
 const filterCollapseTipEl = document.getElementById('filterCollapseTip');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
 const copyAllLinksBtnEl = document.getElementById('copyAllLinksBtn');
+const copyClaimTitleLinksBtnEl = document.getElementById('copyClaimTitleLinksBtn');
 const exportVisibleBtnEl = document.getElementById('exportVisibleBtn');
 const clearStarBtnEl = document.getElementById('clearStarBtn');
 const starLinkFilterChipEl = document.getElementById('starLinkFilterChip');
@@ -721,6 +723,28 @@ async function copyAllClaimableLinks(){
   const uniq = [...new Set(links)];
   const text = uniq.map((x, i) => `${i + 1}. ${x}`).join('\n');
   await copyPlainText(text, `已复制 ${uniq.length} 条可领链接`);
+}
+
+async function copyAllClaimableTitleLinks(){
+  const active = document.querySelector('.tabpage.active');
+  if (!active) return;
+  const rows = [...active.querySelectorAll('.item[data-card-id]')].map((el) => {
+    const title = (el.querySelector('h3')?.textContent || '').replace(/NEW/g, '').trim();
+    const href = String(el.querySelector('.card-actions .btn[href]')?.getAttribute('href') || '').trim();
+    if (!href || href === '#') return null;
+    return { title: title || '未命名', href };
+  }).filter(Boolean);
+  if (!rows.length) return showToast('当前栏目没有可领取内容');
+  const uniq = [];
+  const seen = new Set();
+  for (const item of rows) {
+    const key = `${item.title}@@${item.href}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniq.push(item);
+  }
+  const text = uniq.map((x, i) => `${i + 1}. ${x.title}\n${x.href}`).join('\n\n');
+  await copyPlainText(text, `已复制 ${uniq.length} 条可领标题+链接`);
 }
 
 async function exportVisibleCardsJson(){
@@ -1492,6 +1516,9 @@ if (copyTabDigestBtnEl) {
 if (copyAllLinksBtnEl) {
   copyAllLinksBtnEl.addEventListener('click', copyAllClaimableLinks);
 }
+if (copyClaimTitleLinksBtnEl) {
+  copyClaimTitleLinksBtnEl.addEventListener('click', copyAllClaimableTitleLinks);
+}
 if (exportVisibleBtnEl) {
   exportVisibleBtnEl.addEventListener('click', exportVisibleCardsJson);
 }
@@ -1589,6 +1616,11 @@ window.addEventListener('keydown', (e) => {
   if (e.altKey && (e.key === 'c' || e.key === 'C')) {
     e.preventDefault();
     copyAllClaimableLinks();
+    return;
+  }
+  if (e.altKey && (e.key === 'b' || e.key === 'B')) {
+    e.preventDefault();
+    copyAllClaimableTitleLinks();
     return;
   }
   if (e.altKey && (e.key === 's' || e.key === 'S')) {

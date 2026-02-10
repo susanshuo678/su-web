@@ -102,6 +102,8 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="fillMissingButtonText()">补齐按钮文案</button>
           <button class="btn ok" onclick="standardizeButtonText()">按钮文案全量标准化</button>
           <button class="btn" onclick="auditStaleCards()">陈旧内容体检</button>
+          <button class="btn" onclick="loadDateIntegrity()">时间字段体检</button>
+          <button class="btn ok" onclick="normalizeCardDates()">一键修复时间字段</button>
           <button class="btn" onclick="touchStaleCards()">一键刷新陈旧时间</button>
           <button class="btn danger" onclick="disableStaleCards()">一键停用陈旧内容</button>
           <span id="summaryMeta" class="muted"></span>
@@ -158,6 +160,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div id="summaryFillBox" class="muted" style="margin-top:10px"></div>
         <div id="categoryStatsBox" class="muted" style="margin-top:10px"></div>
         <div id="staleCardsBox" class="muted" style="margin-top:10px"></div>
+        <div id="dateIntegrityBox" class="muted" style="margin-top:10px"></div>
         <div id="qualityOverviewBox" class="muted" style="margin-top:10px"></div>
         <div id="textMediaBalanceBox" class="muted" style="margin-top:10px">点击“图文结构分布”查看</div>
         <div id="opsScoreBox" class="muted" style="margin-top:10px"></div>
@@ -428,6 +431,7 @@ async function doLogin(){
       loadLinkSummaryGaps();
       loadPublishReadiness();
       loadRecentUpdateFeed();
+      loadDateIntegrity();
       restoreActiveView();
       toast('登录成功');
     } catch(e) {
@@ -876,6 +880,38 @@ async function loadRecentCards(){
 
 
 
+
+async function loadDateIntegrity(){
+  const box = document.getElementById('dateIntegrityBox');
+  if (box) box.innerHTML = '时间字段体检中...';
+  try {
+    const r = await req('/api/admin/cards/date-integrity?limit=8', 'GET');
+    const badCreated = Array.isArray(r.invalidCreated) ? r.invalidCreated : [];
+    const badUpdated = Array.isArray(r.invalidUpdated) ? r.invalidUpdated : [];
+    const futureUpdated = Array.isArray(r.futureUpdated) ? r.futureUpdated : [];
+    const renderList = (arr, label) => arr.length
+      ? `<div>${label}（展示前 ${arr.length} 条）</div><ul>${arr.map(x=>`<li><code>${esc(x.id||'')}</code> ${esc(x.title||'未命名')} · ${esc(x.updatedAt || x.createdAt || '-')}</li>`).join('')}</ul>`
+      : `<div class='muted'>${label}：无</div>`;
+    if (box) box.innerHTML = `<div>总卡片 ${r.total||0} · createdAt异常 ${r.invalidCreatedCount||0} · updatedAt异常 ${r.invalidUpdatedCount||0} · 未来时间 ${r.futureUpdatedCount||0}</div>${renderList(badCreated,'createdAt 异常')} ${renderList(badUpdated,'updatedAt 异常')} ${renderList(futureUpdated,'未来时间异常')}`;
+    toast('时间字段体检完成');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">时间字段体检失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`时间字段体检失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function normalizeCardDates(){
+  if(!confirm('确认修复 createdAt/updatedAt 异常？会自动补齐缺失值并校正更新时间早于创建时间的问题。')) return;
+  try {
+    const r = await req('/api/admin/cards/date-normalize', 'POST', {});
+    toast(`时间字段修复完成：更新 ${r.updated||0}/${r.total||0}`);
+    loadAll();
+    refreshSummary();
+    loadDateIntegrity();
+  } catch (e) {
+    toast(`时间字段修复失败：${e?.message || '网络异常'}`);
+  }
+}
 
 async function loadUpdatedRange(){
   const box = document.getElementById('updatedRangeBox');
