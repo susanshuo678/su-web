@@ -74,6 +74,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="loadCategoryStats()">分类分布统计</button>
           <button class="btn" onclick="loadQualityOverview()">内容质量概览</button>
           <button class="btn" onclick="loadActionabilitySummary()">可领率看板</button>
+          <button class="btn" onclick="exportClaimLinks()">导出可领链接</button>
           <button class="btn ok" onclick="disableDuplicateCardsByTitle()">一键停用重复标题</button>
           <button class="btn ok" onclick="disableDuplicateCardsByLink()">一键停用重复链接</button>
           <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
@@ -246,6 +247,30 @@ function toast(text){
   let el=document.getElementById('toast');
   if(!el){el=document.createElement('div');el.id='toast';el.style.cssText='position:fixed;right:16px;top:16px;background:#1d2b4b;color:#fff;padding:8px 12px;border-radius:10px;border:1px solid #345287;z-index:9999';document.body.appendChild(el);}
   el.textContent=text; el.style.display='block'; clearTimeout(window.__toastTimer); window.__toastTimer=setTimeout(()=>el.style.display='none',1800);
+}
+
+async function copyText(text){
+  const val = String(text || '').trim();
+  if (!val) return false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(val);
+      return true;
+    }
+  } catch {}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = val;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    return true;
+  } catch {
+    return false;
+  }
 }
 async function req(url,m='GET',b,auth=true){
   const method = String(m || 'GET').toUpperCase();
@@ -701,6 +726,27 @@ async function loadActionabilitySummary(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">可领率看板加载失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`可领率看板加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function exportClaimLinks(){
+  const activeView = document.querySelector('.view.active')?.id || 'dashboard';
+  const categoryInput = document.getElementById('quickSearchCategory');
+  const category = String(categoryInput?.value || '').trim();
+  try {
+    const q = category ? `?category=${encodeURIComponent(category)}&limit=300` : '?limit=300';
+    const r = await req(`/api/admin/cards/claim-links${q}`, 'GET');
+    const items = Array.isArray(r.items) ? r.items : [];
+    if (!items.length) return toast('没有可导出的可领链接');
+    const lines = items.map((x, i)=>`${i+1}. [${x.category||'-'}] ${x.title||'未命名'}\n${x.link||''}`);
+    const text = `# 可领链接导出\n总计: ${r.total||items.length}\n\n${lines.join('\n\n')}`;
+    const copied = await copyText(text);
+    if (!copied) return toast('复制失败，请稍后重试');
+    toast(`已复制 ${items.length} 条可领链接`);
+    const box = document.getElementById('actionabilityBox');
+    if (box && activeView === 'dashboard') box.innerHTML = `<div>✅ 可领链接已复制到剪贴板，共 ${items.length} 条</div><div class='muted'>筛选分类：${esc(category || '全部')}</div>`;
+  } catch (e) {
+    toast(`导出可领链接失败：${e?.message || '网络异常'}`);
   }
 }
 

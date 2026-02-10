@@ -240,6 +240,7 @@ function invalidateBootstrapCache() {
   recentCardsCache.clear();
   qualityOverviewCache.ver = '';
   qualityOverviewCache.data = null;
+  claimLinksCache.clear();
 }
 
 function pruneInternalCaches() {
@@ -251,6 +252,10 @@ function pruneInternalCaches() {
   if (recentCardsCache.size > 12) {
     const keys = [...recentCardsCache.keys()];
     for (let i = 0; i < keys.length - 12; i++) recentCardsCache.delete(keys[i]);
+  }
+  if (claimLinksCache.size > 20) {
+    const keys = [...claimLinksCache.keys()];
+    for (let i = 0; i < keys.length - 20; i++) claimLinksCache.delete(keys[i]);
   }
 }
 
@@ -335,6 +340,7 @@ const CARD_SEARCH_CACHE_MAX = 40;
 const categoryStatsCache = { ver: '', data: null };
 const recentCardsCache = new Map();
 const qualityOverviewCache = { ver: '', data: null };
+const claimLinksCache = new Map();
 
 function backupFilePath(file) {
   return `${file}.bak`;
@@ -771,6 +777,46 @@ function searchCardsForAdmin(query = '', category = '', limit = 30) {
     const oldest = cardSearchCache.keys().next().value;
     if (oldest) cardSearchCache.delete(oldest);
   }
+  return data;
+}
+
+function getClaimableLinksForAdmin(category = '', limit = 300) {
+  const cat = String(category || '').trim().toLowerCase();
+  const safeLimit = Math.min(1000, Math.max(1, Number(limit) || 300));
+  const ver = `${getFileVersionKey(FILES.cards)}::${cat}::${safeLimit}`;
+  const hit = claimLinksCache.get(ver);
+  if (hit) return hit;
+
+  const rows = getSortedCollection('cards')
+    .filter(item => item.enabled !== false)
+    .filter(item => {
+      const link = String(item.link || '').trim();
+      if (!link || link === '#') return false;
+      if (!cat) return true;
+      return String(item.category || '').trim().toLowerCase() === cat;
+    })
+    .map(item => ({
+      id: String(item.id || ''),
+      title: String(item.title || ''),
+      category: String(item.category || 'uncategorized'),
+      link: String(item.link || '').trim(),
+      updatedAt: String(item.updatedAt || item.createdAt || '')
+    }))
+    .sort((a, b) => {
+      const ta = Date.parse(a.updatedAt || '') || 0;
+      const tb = Date.parse(b.updatedAt || '') || 0;
+      if (tb !== ta) return tb - ta;
+      return a.id.localeCompare(b.id);
+    });
+
+  const data = {
+    total: rows.length,
+    category: cat || 'all',
+    limit: safeLimit,
+    items: rows.slice(0, safeLimit),
+    generatedAt: new Date().toISOString()
+  };
+  claimLinksCache.set(ver, data);
   return data;
 }
 
@@ -1600,6 +1646,14 @@ const backend = http.createServer((req, res) => {
     if (!auth(req,res)) return;
     const limit = Math.min(50, Math.max(1, Number(u.searchParams.get('limit') || 8)));
     const data = getRecentCards(limit);
+    return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+  if (u.pathname === '/api/admin/cards/claim-links' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const category = String(u.searchParams.get('category') || '');
+    const limit = Math.min(1000, Math.max(1, Number(u.searchParams.get('limit') || 300)));
+    const data = getClaimableLinksForAdmin(category, limit);
     return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
   }
 

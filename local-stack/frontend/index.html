@@ -54,6 +54,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="randomPickBtn" class="search-clear" type="button" aria-label="随机看看">随机</button>
       <button id="quickClaimBtn" class="search-clear" type="button" aria-label="只看可领取">只看可领</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
+      <button id="copyAllLinksBtn" class="search-clear" type="button" aria-label="复制全部可领链接">复制可领</button>
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
@@ -144,6 +145,7 @@ const resetFilterBtnEl = document.getElementById('resetFilterBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
 const quickClaimBtnEl = document.getElementById('quickClaimBtn');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
+const copyAllLinksBtnEl = document.getElementById('copyAllLinksBtn');
 const clearStarBtnEl = document.getElementById('clearStarBtn');
 const starLinkFilterChipEl = document.getElementById('starLinkFilterChip');
 const focusModeToggleEl = document.getElementById('focusModeToggle');
@@ -375,6 +377,18 @@ async function copyActiveTabDigest(){
   });
   const digest = `【${title}】共 ${cards.length} 条\n${rows.join('\n')}`;
   await copyPlainText(digest, '本栏摘要已复制');
+}
+
+async function copyAllClaimableLinks(){
+  const active = document.querySelector('.tabpage.active');
+  if (!active) return;
+  const links = [...active.querySelectorAll('.item .card-actions .btn[href]')]
+    .map(el => String(el.getAttribute('href') || '').trim())
+    .filter(href => href && href !== '#');
+  if (!links.length) return showToast('当前栏目没有可领取链接');
+  const uniq = [...new Set(links)];
+  const text = uniq.map((x, i) => `${i + 1}. ${x}`).join('\n');
+  await copyPlainText(text, `已复制 ${uniq.length} 条可领链接`);
 }
 
 async function copyPlainText(text, okText='已复制'){
@@ -853,6 +867,9 @@ if (quickClaimBtnEl) {
 if (copyTabDigestBtnEl) {
   copyTabDigestBtnEl.addEventListener('click', copyActiveTabDigest);
 }
+if (copyAllLinksBtnEl) {
+  copyAllLinksBtnEl.addEventListener('click', copyAllClaimableLinks);
+}
 if (clearStarBtnEl) {
   clearStarBtnEl.addEventListener('click', () => {
     const size = getStarSet().size;
@@ -943,6 +960,11 @@ window.addEventListener('keydown', (e) => {
     searchInputEl.value = '';
     currentQuery = '';
     if (currentData) applyData(currentData);
+  }
+  if (e.altKey && (e.key === 'c' || e.key === 'C')) {
+    e.preventDefault();
+    copyAllClaimableLinks();
+    return;
   }
   if (e.altKey && (e.key === 's' || e.key === 'S')) {
     e.preventDefault();
