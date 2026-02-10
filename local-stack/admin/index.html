@@ -110,6 +110,10 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
       <section id="cardsView" class="view panel">
         <h3>优惠卡片管理（标题 + 三行摘要）</h3>
         <div class="row" style="margin-bottom:8px"><input id="cardSearch" placeholder="搜索卡片（ID/标题/分类/摘要）" oninput="onCardSearchInput()"/><button class="btn" type="button" onclick="clearCardSearch()">清空</button><button class="btn" type="button" onclick="resequenceCardsByCurrentView()">按当前视图重排</button><button class="btn" type="button" onclick="batchDisableBySearch()">按搜索批量停用</button><button class="btn ok" type="button" onclick="batchEnableBySearch()">按搜索批量启用</button><input id="searchTargetCategory" placeholder="搜索结果改分类（key）" style="max-width:220px"/><button class="btn" type="button" onclick="batchMoveCategoryBySearch()">按搜索批量改分类</button></div>
+        <div class="row" style="margin-bottom:8px">
+          <input id="searchTargetButtonText" placeholder="搜索结果按钮文案（如：去领取）" style="max-width:220px"/>
+          <button class="btn" type="button" onclick="batchUpdateButtonTextBySearch()">按搜索批量改按钮文案</button>
+        </div>
         <p id="cardSearchMeta" class="muted" style="margin:0 0 6px">显示 0 / 0（快捷键：Ctrl/Cmd+K 聚焦，Esc 清空）</p>
         <div class="row" style="margin-bottom:8px">
           <input id="bulkCategoryKey" placeholder="按分类批量启停（category key）"/>
@@ -761,6 +765,23 @@ async function batchMoveCategoryBySearch(){
     loadCategoryStats();
   } catch (e) {
     toast(`批量改分类失败：${e?.message||'网络异常'}`);
+  }
+}
+
+async function batchUpdateButtonTextBySearch(){
+  const list = getFilteredCardsBySearch();
+  if(!list.length) return toast('先输入关键词再批量改按钮文案');
+  const buttonText = (document.getElementById('searchTargetButtonText')?.value || '').trim();
+  if(!buttonText) return toast('先输入按钮文案');
+  if(buttonText.length > 20) return toast('按钮文案最多 20 个字符');
+  if(!confirm(`确认将命中的 ${list.length} 张卡片按钮文案改为「${buttonText}」？`)) return;
+  try {
+    const ids = list.map(x=>x.id).filter(Boolean);
+    const r = await req('/api/admin/cards/batch-button-text','POST',{ ids, buttonText });
+    toast(`批量改按钮文案完成：更新 ${r.updated||0}/${r.requested||ids.length}`);
+    loadAll();
+  } catch (e) {
+    toast(`批量改按钮文案失败：${e?.message||'网络异常'}`);
   }
 }
 

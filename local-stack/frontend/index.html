@@ -59,6 +59,7 @@
       <button class="filter-chip" data-media="video" type="button">含视频</button>
       <button class="filter-chip" data-media="link" type="button">可领取</button>
       <button class="filter-chip" data-media="content" type="button">含正文</button>
+      <button class="filter-chip" data-media="today" type="button">今日更新</button>
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
       <button id="clearStarBtn" class="filter-chip" type="button" aria-label="清空收藏">清空收藏</button>
       <button id="tabScopeToggle" class="filter-chip" type="button" aria-pressed="false">仅看当前栏目</button>
@@ -190,6 +191,14 @@ function toggleCardStar(cardId){
   showToast(set.has(id) ? '已收藏' : '已取消收藏');
 }
 
+function isSameLocalDay(ts){
+  if (!ts) return false;
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+
 function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='image') return !!String(card?.image||'').trim();
   if(mediaFilter==='video') return !!String(card?.video||'').trim();
@@ -198,6 +207,7 @@ function matchesMediaFilter(card, mediaFilter){
     return !!link && link !== '#';
   }
   if(mediaFilter==='content') return !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
+  if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
   if(mediaFilter==='starred') return isCardStarred(card);
   return true;
 }
@@ -230,13 +240,13 @@ function pickRandomVisibleCard(){
   showToast(`随机定位：第 ${cards.indexOf(target) + 1} 条`);
 }
 
-async function copyCardLink(link){
-  const target = String(link || '').trim();
-  if (!target || target === '#') return;
+async function copyPlainText(text, okText='已复制'){
+  const target = String(text || '').trim();
+  if (!target) return;
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(target);
-      showToast('链接已复制');
+      showToast(okText);
       return;
     }
   } catch {}
@@ -247,10 +257,20 @@ async function copyCardLink(link){
     input.select();
     document.execCommand('copy');
     input.remove();
-    showToast('链接已复制');
+    showToast(okText);
   } catch {
     showToast('复制失败，请手动复制');
   }
+}
+
+async function copyCardLink(link){
+  const target = String(link || '').trim();
+  if (!target || target === '#') return;
+  return copyPlainText(target, '链接已复制');
+}
+
+async function copyCardTitle(title){
+  return copyPlainText(String(title || '').trim(), '标题已复制');
 }
 
 function updateNetworkUi(){
@@ -309,7 +329,7 @@ function sanitizeHtml(html=''){
 
 function renderShortcuts(list=[]){if(!list.length) return '<p class="empty">暂无快捷入口</p>';return `<div class="grid4">${list.map(x=>`<a class="shortcut" href="${esc(safeUrl(x.link,'#'))}" target="_blank" rel="noopener noreferrer"><div class="icon">${x.icon?`<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(x.icon,''))}" alt="">`:'⚡'}</div><span>${esc(x.name||'入口')}</span></a>`).join('')}</div>`;}
 function renderAds(list=[]){if(!list.length) return ''; const top=list[0]; return `<a class="ad" href="${esc(safeUrl(top.link,'#'))}" target="_blank" rel="noopener noreferrer">${top.image?`<img loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(top.image,''))}" alt="">`:''}<span class="t">${esc(top.title||'推荐')}</span></a>`;}
-function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>{const safeLink=safeUrl(c.link,'#');const hasLink=!!(c.link&&c.link!=='#'&&safeLink!=='#');const starred=isCardStarred(c);const cardId=esc(c.id||'');const updatedRaw=String(c.updatedAt||c.createdAt||'').trim();const updatedText=updatedRaw?new Date(updatedRaw).toLocaleString('zh-CN',{hour12:false}):'';return `<article class="card item" data-card-id="${cardId}"><h3>${highlightText(c.title||'未命名', currentQuery)}</h3><p class="sub">${highlightText(c.summary||'', currentQuery)}</p>${updatedText?`<p class="sub" style="margin-top:4px;font-size:12px">更新于：${esc(updatedText)}</p>`:''}${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}<div class="card-actions">${hasLink?`<a class="btn" href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a><button class="btn-lite" type="button" onclick="copyCardLink('${esc(safeLink)}')">复制链接</button>`:''}<button class="btn-lite" type="button" onclick="toggleCardStar('${cardId}')">${starred?'★ 已收藏':'☆ 收藏'}</button></div></article>`;}).join('')}</div>`;}
+function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>{const safeLink=safeUrl(c.link,'#');const hasLink=!!(c.link&&c.link!=='#'&&safeLink!=='#');const starred=isCardStarred(c);const cardId=esc(c.id||'');const titleText=String(c.title||'').trim();const updatedRaw=String(c.updatedAt||c.createdAt||'').trim();const updatedText=updatedRaw?new Date(updatedRaw).toLocaleString('zh-CN',{hour12:false}):'';return `<article class="card item" data-card-id="${cardId}"><h3>${highlightText(c.title||'未命名', currentQuery)}</h3><p class="sub">${highlightText(c.summary||'', currentQuery)}</p>${updatedText?`<p class="sub" style="margin-top:4px;font-size:12px">更新于：${esc(updatedText)}</p>`:''}${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}<div class="card-actions">${hasLink?`<a class="btn" href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a><button class="btn-lite" type="button" onclick="copyCardLink('${esc(safeLink)}')">复制链接</button>`:''}${titleText?`<button class="btn-lite" type="button" onclick="copyCardTitle('${esc(titleText)}')">复制标题</button>`:''}<button class="btn-lite" type="button" onclick="toggleCardStar('${cardId}')">${starred?'★ 已收藏':'☆ 收藏'}</button></div></article>`;}).join('')}</div>`;}
 
 let bootstrapInFlight = null;
 let bootstrapCtrl = null;
@@ -572,7 +592,7 @@ function restoreSearchState(){
   const strictScope = safeGetLocalStorage('suweb_strict_tab_scope') || '0';
   const recentSort = safeGetLocalStorage('suweb_recent_sort') || '0';
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link','content','starred'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','content','today','starred'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
   if (searchInputEl) searchInputEl.value = currentQuery;
@@ -650,6 +670,14 @@ window.addEventListener('keydown', (e) => {
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'starred' ? '已切换到收藏筛选' : '已切换到全部内容');
+    return;
+  }
+  if (e.altKey && (e.key === 'l' || e.key === 'L')) {
+    e.preventDefault();
+    currentMediaFilter = currentMediaFilter === 'link' ? 'all' : 'link';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'link' ? '已切换到可领取内容' : '已切换到全部内容');
     return;
   }
   if (document.activeElement === searchInputEl) return;

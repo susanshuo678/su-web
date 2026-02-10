@@ -231,6 +231,7 @@ function invalidateBootstrapCache() {
   cardSearchCache.clear();
   categoryStatsCache.ver = '';
   categoryStatsCache.data = null;
+  recentCardsCache.clear();
 }
 
 function pruneTokens() {
@@ -311,6 +312,7 @@ const CARD_SEARCH_CACHE_TTL_MS = 5000;
 const CARD_SEARCH_CACHE_MAX = 40;
 
 const categoryStatsCache = { ver: '', data: null };
+const recentCardsCache = new Map();
 
 function backupFilePath(file) {
   return `${file}.bak`;
@@ -916,6 +918,11 @@ function getCardCategoryStats() {
 
 function getRecentCards(limit = 10) {
   const safeLimit = Math.min(50, Math.max(1, Number(limit) || 10));
+  const ver = getFileVersionKey(FILES.cards);
+  const cacheKey = `${ver}::${safeLimit}`;
+  const hit = recentCardsCache.get(cacheKey);
+  if (hit) return hit;
+
   const cards = getSortedCollection('cards');
   const fallbackTs = getLatestDataUpdatedAt() || new Date().toISOString();
   const rows = cards
@@ -934,7 +941,14 @@ function getRecentCards(limit = 10) {
       return a.order - b.order;
     })
     .slice(0, safeLimit);
-  return { total: cards.length, limit: safeLimit, items: rows };
+
+  const data = { total: cards.length, limit: safeLimit, items: rows };
+  recentCardsCache.set(cacheKey, data);
+  if (recentCardsCache.size > 20) {
+    const oldest = recentCardsCache.keys().next().value;
+    if (oldest) recentCardsCache.delete(oldest);
+  }
+  return data;
 }
 
 function autoDisableLowQualityCards() {
@@ -1368,6 +1382,32 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
         invalidateBootstrapCache();
       }
       return send(res, 200, JSON.stringify({ ok: true, updated, requested: idSet.size, category: nextCategory }));
+    }).catch((err)=>handleParseError(res, err));
+  }
+
+  if (u.pathname === '/api/admin/cards/batch-button-text' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ ids, buttonText }) => {
+      const idSet = new Set(Array.isArray(ids) ? ids.map(x => String(x || '')).filter(Boolean) : []);
+      const nextButtonText = String(buttonText || '').trim().slice(0, 20);
+      if (!idSet.size) return send(res, 400, JSON.stringify({ error: 'ids required' }));
+      if (!nextButtonText) return send(res, 400, JSON.stringify({ error: 'buttonText required' }));
+
+      const list = readJson(FILES.cards, []);
+      let updated = 0;
+      const next = list.map(item => {
+        const id = String(item.id || '');
+        if (!idSet.has(id)) return item;
+        if (String(item.buttonText || '') === nextButtonText) return item;
+        updated++;
+        return { ...item, buttonText: nextButtonText, updatedAt: new Date().toISOString() };
+      });
+
+      if (updated > 0) {
+        writeJson(FILES.cards, next);
+        invalidateBootstrapCache();
+      }
+      return send(res, 200, JSON.stringify({ ok: true, updated, requested: idSet.size, buttonText: nextButtonText }));
     }).catch((err)=>handleParseError(res, err));
   }
 
