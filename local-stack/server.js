@@ -254,6 +254,8 @@ function invalidateBootstrapCache() {
   cardSearchCache.clear();
   categoryStatsCache.ver = '';
   categoryStatsCache.data = null;
+  categoryOptionsCache.ver = '';
+  categoryOptionsCache.data = null;
   recentCardsCache.clear();
   qualityOverviewCache.ver = '';
   qualityOverviewCache.data = null;
@@ -362,6 +364,7 @@ const CARD_SEARCH_CACHE_TTL_MS = 5000;
 const CARD_SEARCH_CACHE_MAX = 40;
 
 const categoryStatsCache = { ver: '', data: null };
+const categoryOptionsCache = { ver: '', data: null };
 const recentCardsCache = new Map();
 const qualityOverviewCache = { ver: '', data: null };
 const claimLinksCache = new Map();
@@ -1194,6 +1197,9 @@ function getCardCategoryStats() {
 }
 
 function getAdminCategoryOptions() {
+  const ver = `${getFileVersionKey(FILES.tabs)}::${getFileVersionKey(FILES.cards)}`;
+  if (categoryOptionsCache.data && categoryOptionsCache.ver === ver) return categoryOptionsCache.data;
+
   const tabs = getSortedCollection('tabs');
   const cards = getSortedCollection('cards');
   const byCategory = new Map();
@@ -1212,10 +1218,14 @@ function getAdminCategoryOptions() {
     row.fromTab = true;
     row.name = String(tab.name || key);
   }
-  return {
+
+  const data = {
     updatedAt: getLatestDataUpdatedAt(),
     rows: [...byCategory.values()].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key))
   };
+  categoryOptionsCache.ver = ver;
+  categoryOptionsCache.data = data;
+  return data;
 }
 
 function getRecentCards(limit = 10) {
@@ -2108,6 +2118,36 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
         invalidateBootstrapCache();
       }
       return send(res, 200, JSON.stringify({ ok: true, updated, requested: idSet.size, buttonText: nextButtonText }));
+    }).catch((err)=>handleParseError(res, err));
+  }
+
+  if (u.pathname === '/api/admin/cards/batch-summary-prefix' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ ids, prefix }) => {
+      const idSet = new Set(Array.isArray(ids) ? ids.map(x => String(x || '')).filter(Boolean) : []);
+      const nextPrefix = String(prefix || '').trim().slice(0, 30);
+      if (!idSet.size) return send(res, 400, JSON.stringify({ error: 'ids required' }));
+      if (!nextPrefix) return send(res, 400, JSON.stringify({ error: 'prefix required' }));
+
+      const list = readJson(FILES.cards, []);
+      const nowIso = new Date().toISOString();
+      let updated = 0;
+      const next = list.map(item => {
+        const id = String(item.id || '');
+        if (!idSet.has(id)) return item;
+        const raw = String(item.summary || '').trim();
+        if (!raw) return item;
+        if (raw.startsWith(`${nextPrefix} `) || raw === nextPrefix) return item;
+        updated++;
+        const merged = `${nextPrefix} ${raw}`.trim().slice(0, 1200);
+        return { ...item, summary: merged, updatedAt: nowIso };
+      });
+
+      if (updated > 0) {
+        writeJson(FILES.cards, next);
+        invalidateBootstrapCache();
+      }
+      return send(res, 200, JSON.stringify({ ok: true, updated, requested: idSet.size, prefix: nextPrefix }));
     }).catch((err)=>handleParseError(res, err));
   }
 

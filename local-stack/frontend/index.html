@@ -58,6 +58,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="quickClaimBtn" class="search-clear" type="button" aria-label="只看可领取">只看可领</button>
       <button id="quickTodayBtn" class="search-clear" type="button" aria-label="只看今日更新">今日更新</button>
       <button id="quickRecentBtn" class="search-clear" type="button" aria-label="只看近3天更新">近3天</button>
+      <button id="quickNew24Btn" class="search-clear" type="button" aria-label="只看24小时内更新">24h NEW</button>
       <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="copyAllLinksBtn" class="search-clear" type="button" aria-label="复制全部可领链接">复制可领</button>
@@ -65,7 +66,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
-    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目。</div>
+    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+W 切 24h NEW。</div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
       <button class="filter-chip" data-media="image" type="button">含图片</button>
@@ -158,6 +159,7 @@ const randomPickBtnEl = document.getElementById('randomPickBtn');
 const quickClaimBtnEl = document.getElementById('quickClaimBtn');
 const quickTodayBtnEl = document.getElementById('quickTodayBtn');
 const quickRecentBtnEl = document.getElementById('quickRecentBtn');
+const quickNew24BtnEl = document.getElementById('quickNew24Btn');
 const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
 const filterCollapseTipEl = document.getElementById('filterCollapseTip');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
@@ -226,6 +228,14 @@ function updateQuickRecentBtn(){
   quickRecentBtnEl.classList.toggle('active', active);
   quickRecentBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickRecentBtnEl.textContent = active ? '取消近3天' : '近3天';
+}
+
+function updateQuickNew24Btn(){
+  if (!quickNew24BtnEl) return;
+  const active = currentMediaFilter === 'new-24h';
+  quickNew24BtnEl.classList.toggle('active', active);
+  quickNew24BtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quickNew24BtnEl.textContent = active ? '取消24h' : '24h NEW';
 }
 
 function updateFilterBarUi(){
@@ -742,6 +752,7 @@ function applyData(data){
   updateQuickClaimBtn();
   updateQuickTodayBtn();
   updateQuickRecentBtn();
+  updateQuickNew24Btn();
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = (!focusModeEnabled && adsHtml) ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
   const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p><div class="card-actions"><button class="btn-lite" type="button" onclick="resetFilters()">重置筛选</button></div></section>' : '';
@@ -914,6 +925,7 @@ function restoreSearchState(){
   updateQuickClaimBtn();
   updateQuickTodayBtn();
   updateQuickRecentBtn();
+  updateQuickNew24Btn();
 }
 
 function getAutoRefreshIntervalMs(){
@@ -1003,6 +1015,15 @@ if (quickRecentBtnEl) {
     if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'fresh-3' ? '已切到近3天更新' : '已恢复全部内容');
+  });
+}
+if (quickNew24BtnEl) {
+  quickNew24BtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'new-24h' ? 'all' : 'new-24h';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'new-24h' ? '已切到24h NEW' : '已恢复全部内容');
   });
 }
 if (toggleFilterBarBtnEl) {
@@ -1163,6 +1184,15 @@ window.addEventListener('keydown', (e) => {
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'unstarred' ? '已切换到未收藏内容' : '已切换到全部内容');
+    return;
+  }
+
+  if (e.altKey && (e.key === 'w' || e.key === 'W')) {
+    e.preventDefault();
+    currentMediaFilter = currentMediaFilter === 'new-24h' ? 'all' : 'new-24h';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'new-24h' ? '已切换到24h NEW内容' : '已切换到全部内容');
     return;
   }
 
