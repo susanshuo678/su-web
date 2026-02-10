@@ -84,9 +84,13 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="checkCardDuplicates()">重复卡片体检</button>
           <button class="btn" onclick="loadCategoryStats()">分类分布统计</button>
           <button class="btn" onclick="loadQualityOverview()">内容质量概览</button>
+          <button class="btn" onclick="loadOpsScoreSummary()">运营健康分</button>
           <button class="btn" onclick="loadShortSummaryCards()">短摘要巡检</button>
+          <button class="btn" onclick="loadEmptySummaryCards()">空摘要巡检</button>
           <button class="btn" onclick="loadActionabilitySummary()">可领率看板</button>
           <button class="btn" onclick="loadPublishReadiness()">发布就绪检查</button>
+          <button class="btn" onclick="loadRecentUpdateFeed()">24h更新清单</button>
+          <button class="btn ok" onclick="copyOpsDigest()">复制运营摘要</button>
           <button class="btn" onclick="exportClaimLinks()">导出可领链接</button>
           <button class="btn" onclick="loadClaimDomainStats()">可领域名分布</button>
           <button class="btn ok" onclick="disableDuplicateCardsByTitle()">一键停用重复标题</button>
@@ -154,9 +158,12 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div id="categoryStatsBox" class="muted" style="margin-top:10px"></div>
         <div id="staleCardsBox" class="muted" style="margin-top:10px"></div>
         <div id="qualityOverviewBox" class="muted" style="margin-top:10px"></div>
+        <div id="opsScoreBox" class="muted" style="margin-top:10px"></div>
         <div id="shortSummaryBox" class="muted" style="margin-top:10px"></div>
+        <div id="emptySummaryBox" class="muted" style="margin-top:10px"></div>
         <div id="actionabilityBox" class="muted" style="margin-top:10px"></div>
         <div id="publishReadinessBox" class="muted" style="margin-top:10px"></div>
+        <div id="recentUpdateFeedBox" class="muted" style="margin-top:10px"></div>
         <div id="claimDomainBox" class="muted" style="margin-top:10px"></div>
       </section>
 
@@ -386,9 +393,12 @@ async function doLogin(){
       loadFreshnessSummary();
       loadUpdatedRange();
       loadQualityOverview();
+      loadOpsScoreSummary();
       loadShortSummaryCards();
+      loadEmptySummaryCards();
       loadActionabilitySummary();
       loadPublishReadiness();
+      loadRecentUpdateFeed();
       restoreActiveView();
       toast('登录成功');
     } catch(e) {
@@ -905,6 +915,53 @@ async function loadActionabilitySummary(){
 }
 
 
+
+async function loadRecentUpdateFeed(){
+  const box = document.getElementById('recentUpdateFeedBox');
+  if (box) box.innerHTML = '24h更新清单加载中...';
+  try {
+    const r = await req('/api/admin/cards/recent-updates?hours=24&limit=20', 'GET');
+    const items = Array.isArray(r.items) ? r.items : [];
+    if (!items.length) {
+      if (box) box.innerHTML = '最近24小时暂无更新卡片';
+      return;
+    }
+    const list = items.map((x, idx) => `<li>${idx+1}. <code>${esc(x.id||'')}</code> ${esc(x.title||'未命名')} · 分类:${esc(x.category||'-')} · ${esc(x.updatedAgoText||'-')} <button class='btn' type='button' onclick="jumpToCard('${esc(x.id||'')}')">定位</button></li>`).join('');
+    if (box) box.innerHTML = `<div>最近24小时更新 ${r.total||0} 条（展示 ${items.length} 条）</div><ul>${list}</ul><div class='muted'>统计时间：${esc(r.generatedAt||'-')}</div>`;
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">24h更新清单加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`24h更新清单加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function copyOpsDigest(){
+  try {
+    const [summary, readiness, updates] = await Promise.all([
+      req('/api/admin/cards/quick-insights', 'GET'),
+      req('/api/admin/cards/publish-readiness', 'GET'),
+      req('/api/admin/cards/recent-updates?hours=24&limit=8', 'GET')
+    ]);
+    const t = summary?.totals || {};
+    const u = Array.isArray(updates?.items) ? updates.items : [];
+    const lines = [
+      `# 网站运营摘要`,
+      `- 生成时间: ${new Date().toLocaleString('zh-CN', {hour12:false})}`,
+      `- 启用卡片: ${t.enabled||0}，可领取: ${t.claimable||0}（可领率 ${t.claimableRate||0}%）`,
+      `- 24h更新: ${t.updated24h||0}，今日更新: ${t.updatedToday||0}，14天陈旧: ${t.stale14d||0}`,
+      `- 发布就绪分: ${readiness?.score||0}/100（可发布: ${readiness?.ready ? '是' : '否'}）`,
+      `- 24h更新Top${u.length}:`
+    ];
+    for (const item of u) lines.push(`  - ${item.title || item.id}（${item.category || '-'}，${item.updatedAgoText || '-' }）`);
+    const text = lines.join('
+');
+    const ok = await copyText(text);
+    if (!ok) throw new Error('剪贴板不可用');
+    toast('运营摘要已复制');
+  } catch (e) {
+    toast(`复制运营摘要失败：${e?.message || '网络异常'}`);
+  }
+}
+
 async function loadClaimDomainStats(){
   const box = document.getElementById('claimDomainBox');
   if (box) box.innerHTML = '可领域名分布加载中...';
@@ -972,6 +1029,26 @@ async function loadQualityOverview(){
   }
 }
 
+async function loadOpsScoreSummary(){
+  const box = document.getElementById('opsScoreBox');
+  if (box) box.innerHTML = '运营健康分加载中...';
+  try {
+    const r = await req('/api/admin/cards/ops-score', 'GET');
+    const m = r.metrics || {};
+    const rates = r.rates || {};
+    const levelText = r.level === 'healthy' ? '健康' : (r.level === 'watch' ? '观察' : '风险');
+    if (box) box.innerHTML = `
+      <div>运营健康分：<b>${r.score || 0}</b>/100（${levelText}）</div>
+      <div>核心覆盖：可领率 ${rates.linkRate || 0}% · 7天更新率 ${rates.fresh7dRate || 0}% · 媒体覆盖率 ${rates.mediaRate || 0}%</div>
+      <div>风险计数：空摘要 ${m.missingSummary || 0} · 空按钮 ${m.missingButtonText || 0} · 启用总数 ${m.total || 0}</div>
+      <div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('运营健康分已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">运营健康分加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`运营健康分加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
 async function loadShortSummaryCards(){
   const box = document.getElementById('shortSummaryBox');
   if (box) box.innerHTML = '短摘要巡检加载中...';
@@ -989,6 +1066,26 @@ async function loadShortSummaryCards(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">短摘要巡检加载失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`短摘要巡检加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function loadEmptySummaryCards(){
+  const box = document.getElementById('emptySummaryBox');
+  if (box) box.innerHTML = '空摘要巡检加载中...';
+  try {
+    const r = await req('/api/admin/cards/summary-empty?limit=30', 'GET');
+    const rows = Array.isArray(r.rows) ? r.rows : [];
+    const list = rows.length
+      ? `<ul>${rows.map((x, i)=>`<li>${i+1}. <code>${esc(x.id||'-')}</code> ${esc(x.title||'未命名')} · ${esc(x.category||'-')} · ${x.hasLink ? '可领' : '无链接'} · ${esc(x.updatedAt ? new Date(x.updatedAt).toLocaleString('zh-CN', { hour12:false }) : '-')}</li>`).join('')}</ul>`
+      : '<div class="muted">暂无空摘要卡片</div>';
+    if (box) box.innerHTML = `
+      <div>空摘要卡片 ${esc(String(r.total||0))} 条（展示前 ${rows.length} 条）</div>
+      ${list}
+      <div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('空摘要巡检已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">空摘要巡检加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`空摘要巡检加载失败：${e?.message || '网络异常'}`);
   }
 }
 
