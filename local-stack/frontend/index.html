@@ -70,6 +70,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="quickClaimRandomBtn" class="search-clear" type="button" aria-label="随机一个可领取">随机可领</button>
       <button id="quickDatedBtn" class="search-clear" type="button" aria-label="只看有更新时间">有更新时间</button>
       <button id="quickShortSummaryBtn" class="search-clear" type="button" aria-label="只看短摘要内容">短摘要</button>
+      <button id="quickMediaBtn" class="search-clear" type="button" aria-label="只看图文内容">有媒体</button>
       <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="copyAllLinksBtn" class="search-clear" type="button" aria-label="复制全部可领链接">复制可领</button>
@@ -96,6 +97,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="new-48h" type="button">48h NEW</button>
       <button class="filter-chip" data-media="dated" type="button">有更新时间</button>
       <button class="filter-chip" data-media="summary-short" type="button">短摘要</button>
+      <button class="filter-chip" data-media="has-media" type="button">有媒体</button>
       <button class="filter-chip" data-media="claim-new24" type="button">可领+24h</button>
       <button class="filter-chip" data-media="text-only" type="button">纯文本</button>
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
@@ -193,6 +195,7 @@ const quickClaimNew24BtnEl = document.getElementById('quickClaimNew24Btn');
 const quickClaimRandomBtnEl = document.getElementById('quickClaimRandomBtn');
 const quickDatedBtnEl = document.getElementById('quickDatedBtn');
 const quickShortSummaryBtnEl = document.getElementById('quickShortSummaryBtn');
+const quickMediaBtnEl = document.getElementById('quickMediaBtn');
 const autoRefreshToggleBtnEl = document.getElementById('autoRefreshToggleBtn');
 const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
 const filterCollapseTipEl = document.getElementById('filterCollapseTip');
@@ -336,6 +339,14 @@ function updateQuickShortSummaryBtn(){
   quickShortSummaryBtnEl.classList.toggle('active', active);
   quickShortSummaryBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickShortSummaryBtnEl.textContent = active ? '取消短摘要' : '短摘要';
+}
+
+function updateQuickMediaBtn(){
+  if (!quickMediaBtnEl) return;
+  const active = currentMediaFilter === 'has-media';
+  quickMediaBtnEl.classList.toggle('active', active);
+  quickMediaBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quickMediaBtnEl.textContent = active ? '取消有媒体' : '有媒体';
 }
 
 function updateAutoRefreshToggleUi(){
@@ -514,6 +525,7 @@ function matchesMediaFilter(card, mediaFilter){
     const summary = String(card?.summary||'').replace(/\s+/g,' ').trim();
     return !!summary && summary.length <= 20;
   }
+  if(mediaFilter==='has-media') return !!String(card?.image||'').trim() || !!String(card?.video||'').trim();
   if(mediaFilter==='claim-new24') return hasClaimableLink(card) && isRecentlyUpdated(card, 1);
   if(mediaFilter==='text-only'){
     const hasMedia = !!String(card?.image||'').trim() || !!String(card?.video||'').trim();
@@ -932,6 +944,7 @@ function applyData(data){
   updateQuickDatedBtn();
   updateQuickClaimNew24Btn();
   updateQuickShortSummaryBtn();
+  updateQuickMediaBtn();
   updateAutoRefreshToggleUi();
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = (!focusModeEnabled && adsHtml) ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
@@ -1267,6 +1280,15 @@ if (quickClaimNew24BtnEl) {
 if (quickClaimRandomBtnEl) {
   quickClaimRandomBtnEl.addEventListener('click', pickRandomClaimableCard);
 }
+if (quickMediaBtnEl) {
+  quickMediaBtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'has-media' ? 'all' : 'has-media';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'has-media' ? '已切到有媒体内容' : '已恢复全部内容');
+  });
+}
 if (quickDatedBtnEl) {
   quickDatedBtnEl.addEventListener('click', () => {
     currentMediaFilter = currentMediaFilter === 'dated' ? 'all' : 'dated';
@@ -1402,6 +1424,14 @@ window.addEventListener('keydown', (e) => {
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'link' ? '已切换到可领取内容' : '已切换到全部内容');
+    return;
+  }
+  if (e.altKey && (e.key === 'h' || e.key === 'H')) {
+    e.preventDefault();
+    currentMediaFilter = currentMediaFilter === 'has-media' ? 'all' : 'has-media';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'has-media' ? '已切换到有媒体内容' : '已切换到全部内容');
     return;
   }
   if (e.altKey && (e.key === 'm' || e.key === 'M')) {
@@ -1577,6 +1607,10 @@ let lastManualRefreshAt = 0;
 
 function manualRefresh(){
   const now = Date.now();
+  if (bootstrapInFlight) {
+    showToast('刷新进行中，请稍等');
+    return;
+  }
   if (now - lastManualRefreshAt < 800) return;
   lastManualRefreshAt = now;
   init(true);

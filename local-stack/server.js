@@ -1764,6 +1764,46 @@ function normalizeCardTitles() {
   return { updated, total: list.length };
 }
 
+function trimCardFields() {
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const nowIso = new Date().toISOString();
+  const trimText = (v, maxLen = 2000) => String(v || '').replace(/[\t ]+/g, ' ').trim().slice(0, maxLen);
+  const normalizeSummary = (v) => String(v || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[\t ]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n')
+    .map(x => x.trim())
+    .join('\n')
+    .trim()
+    .slice(0, 1200);
+
+  const next = list.map(item => {
+    const normalized = {
+      ...item,
+      title: trimText(item.title, 120),
+      summary: normalizeSummary(item.summary),
+      category: trimText(item.category, 60) || 'all',
+      buttonText: trimText(item.buttonText, 30),
+      link: trimText(item.link, 600),
+      image: trimText(item.image, 600),
+      video: trimText(item.video, 600)
+    };
+    if (!normalized.buttonText) normalized.buttonText = (!normalized.link || normalized.link === '#') ? '查看详情' : '去领取';
+    const changed = ['title','summary','category','buttonText','link','image','video'].some(k => String(item[k] || '') !== String(normalized[k] || ''));
+    if (!changed) return item;
+    updated++;
+    return { ...normalized, updatedAt: nowIso, createdAt: String(item.createdAt || '').trim() || nowIso };
+  });
+
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, total: list.length, updatedAt: nowIso };
+}
+
 function pruneAllRuntimeCaches() {
   const before = {
     jsonRead: jsonReadCache.size,
@@ -1775,11 +1815,13 @@ function pruneAllRuntimeCaches() {
     staticBr: staticBrCache.size,
     tokens: tokens.size,
     loginBuckets: loginAttempts.size,
-    uploadBuckets: uploadAttempts.size
+    uploadBuckets: uploadAttempts.size,
+    bootstrapBuckets: bootstrapHits.size
   };
   pruneTokens();
   pruneLoginAttempts();
   pruneUploadAttempts();
+  pruneBootstrapHits();
   pruneInternalCaches();
   if (jsonReadCache.size > 12) {
     const keys = [...jsonReadCache.keys()];
@@ -1803,7 +1845,8 @@ function pruneAllRuntimeCaches() {
     staticBr: staticBrCache.size,
     tokens: tokens.size,
     loginBuckets: loginAttempts.size,
-    uploadBuckets: uploadAttempts.size
+    uploadBuckets: uploadAttempts.size,
+    bootstrapBuckets: bootstrapHits.size
   };
   return { before, after, prunedAt: new Date().toISOString() };
 }
@@ -2703,6 +2746,12 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
   if (u.pathname === '/api/admin/cards/title-normalize' && req.method === 'POST') {
     if (!auth(req,res)) return;
     const result = normalizeCardTitles();
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
+  }
+
+  if (u.pathname === '/api/admin/cards/trim-fields' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = trimCardFields();
     return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 

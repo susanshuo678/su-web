@@ -79,6 +79,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="normalizeCardSummaries()">摘要一键规范化</button>
           <button class="btn ok" onclick="fillEmptySummaries()">一键补空摘要</button>
           <button class="btn ok" onclick="normalizeCardTitles()">标题一键规范化</button>
+          <button class="btn ok" onclick="trimCardFields()">字段去空白</button>
           <button class="btn ok" onclick="normalizeAllOrders()">统一重排顺序</button>
           <button class="btn" onclick="checkCardDuplicates()">重复卡片体检</button>
           <button class="btn" onclick="loadCategoryStats()">分类分布统计</button>
@@ -715,6 +716,18 @@ async function normalizeCardTitles(){
     refreshSummary();
   } catch (e) {
     toast(`标题规范化失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function trimCardFields(){
+  if(!confirm('确认清理卡片字段首尾空白？会规范标题/摘要/链接/按钮文案/分类并更新更新时间。')) return;
+  try {
+    const r = await req('/api/admin/cards/trim-fields', 'POST', {});
+    toast(`字段去空白完成：更新 ${r.updated||0}/${r.total||0}`);
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`字段去空白失败：${e?.message || '网络异常'}`);
   }
 }
 
