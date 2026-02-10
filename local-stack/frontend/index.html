@@ -65,6 +65,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="fresh-14" type="button">14天更新</button>
       <button class="filter-chip" data-media="content" type="button">含正文</button>
       <button class="filter-chip" data-media="today" type="button">今日更新</button>
+      <button class="filter-chip" data-media="today-link" type="button">今日可领</button>
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
       <button class="filter-chip" data-media="unstarred" type="button">未收藏</button>
       <button id="starLinkFilterChip" class="filter-chip" type="button" aria-label="收藏且可领取">收藏+可领</button>
@@ -285,6 +286,7 @@ function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='fresh-14') return isRecentlyUpdated(card, 14);
   if(mediaFilter==='content') return !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
   if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
+  if(mediaFilter==='today-link') return isSameLocalDay(card?.updatedAt || card?.createdAt) && hasClaimableLink(card);
   if(mediaFilter==='starred') return isCardStarred(card);
   if(mediaFilter==='unstarred') return !isCardStarred(card);
   if(mediaFilter==='star-link') return isCardStarred(card) && hasClaimableLink(card);
@@ -733,7 +735,7 @@ function restoreSearchState(){
   const hideVisited = params.get('hideVisited') ?? (safeGetLocalStorage('suweb_hide_visited') || '0');
   const claimUnseen = params.get('claimUnseen') ?? (safeGetLocalStorage('suweb_claim_unseen') || '0');
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link','fresh-link','fresh-14','content','today','starred','unstarred','star-link'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','fresh-link','fresh-14','content','today','today-link','starred','unstarred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
   focusModeEnabled = focusMode === '1';
@@ -929,6 +931,14 @@ window.addEventListener('keydown', (e) => {
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'fresh-14' ? '已切换到14天更新内容' : '已切换到全部内容');
+    return;
+  }
+  if (e.altKey && (e.key === 'd' || e.key === 'D')) {
+    e.preventDefault();
+    currentMediaFilter = currentMediaFilter === 'today-link' ? 'all' : 'today-link';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'today-link' ? '已切换到今日可领内容' : '已切换到全部内容');
     return;
   }
   if (e.altKey && (e.key === 'n' || e.key === 'N')) {

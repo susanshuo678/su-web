@@ -71,6 +71,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="normalizeAllOrders()">统一重排顺序</button>
           <button class="btn" onclick="checkCardDuplicates()">重复卡片体检</button>
           <button class="btn" onclick="loadCategoryStats()">分类分布统计</button>
+          <button class="btn" onclick="loadQualityOverview()">内容质量概览</button>
           <button class="btn ok" onclick="disableDuplicateCardsByTitle()">一键停用重复标题</button>
           <button class="btn ok" onclick="disableDuplicateCardsByLink()">一键停用重复链接</button>
           <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
@@ -113,6 +114,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div id="duplicateCheckBox" class="muted" style="margin-top:10px"></div>
         <div id="categoryStatsBox" class="muted" style="margin-top:10px"></div>
         <div id="staleCardsBox" class="muted" style="margin-top:10px"></div>
+        <div id="qualityOverviewBox" class="muted" style="margin-top:10px"></div>
       </section>
 
       <section id="adsView" class="view panel"><h3>头部横排广告</h3><div id="ads"></div></section>
@@ -303,6 +305,7 @@ async function doLogin(){
       loadCategoryStats();
       loadRecentCards();
       loadBootstrapMeta();
+      loadQualityOverview();
       restoreActiveView();
       toast('登录成功');
     } catch(e) {
@@ -669,6 +672,30 @@ async function loadRecentCards(){
   }
 }
 
+
+
+async function loadQualityOverview(){
+  const box = document.getElementById('qualityOverviewBox');
+  if (box) box.innerHTML = '内容质量概览加载中...';
+  try {
+    const r = await req('/api/admin/cards/quality-overview', 'GET');
+    const c = r.counts || {};
+    const topOld = Array.isArray(r.topStale || []) ? r.topStale : [];
+    const staleRows = topOld.length
+      ? `<ul>${topOld.map(x=>`<li><code>${esc(x.id||'')}</code> ${esc(x.title||'未命名')} · ${esc(String(x.daysSinceUpdated||'-'))} 天未更新</li>`).join('')}</ul>`
+      : '<div class="muted">暂无超过 14 天未更新的卡片</div>';
+    if (box) box.innerHTML = `
+      <div>总卡片 ${c.total||0} · 启用 ${c.enabled||0} · 可领取 ${c.withLink||0} · 含媒体 ${c.withMedia||0}</div>
+      <div>质量风险：空摘要 ${c.emptySummary||0} · 空按钮文案 ${c.emptyButtonText||0} · 空分类 ${c.emptyCategory||0} · 14天未更新 ${c.stale14d||0}</div>
+      <div style="margin-top:6px">最陈旧内容（前5条）</div>
+      ${staleRows}
+      <div class="muted">统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('内容质量概览已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">内容质量概览加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`内容质量概览加载失败：${e?.message || '网络异常'}`);
+  }
+}
 
 async function loadBootstrapMeta(){
   const box = document.getElementById('bootstrapMetaBox');
