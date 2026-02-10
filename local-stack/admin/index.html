@@ -74,6 +74,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="disableDuplicateCardsByLink()">一键停用重复链接</button>
           <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
           <button class="btn ok" onclick="fillMissingUpdatedAt()">补齐更新时间</button>
+          <button class="btn ok" onclick="fillMissingCategory()">补齐空分类</button>
           <button class="btn ok" onclick="fillMissingButtonText()">补齐按钮文案</button>
           <button class="btn ok" onclick="standardizeButtonText()">按钮文案全量标准化</button>
           <button class="btn" onclick="auditStaleCards()">陈旧内容体检</button>
@@ -688,6 +689,19 @@ async function fillMissingUpdatedAt(){
     refreshSummary();
   } catch (e) {
     toast(`补齐失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function fillMissingCategory(){
+  if(!confirm('确认自动补齐空分类？空分类将统一改为 all。')) return;
+  try {
+    const r = await req('/api/admin/cards/fill-category', 'POST', {});
+    toast(`补齐空分类完成：更新 ${r.updated||0}/${r.total||0}`);
+    loadAll();
+    loadCategoryStats();
+    refreshSummary();
+  } catch (e) {
+    toast(`补齐空分类失败：${e?.message || '网络异常'}`);
   }
 }
 

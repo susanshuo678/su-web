@@ -54,6 +54,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="randomPickBtn" class="search-clear" type="button" aria-label="随机看看">随机</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
+      <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
@@ -71,6 +72,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="focusModeToggle" class="filter-chip" type="button" aria-pressed="false">专注模式</button>
       <button id="denseModeToggle" class="filter-chip" type="button" aria-pressed="false">紧凑列表</button>
       <button id="hideVisitedToggle" class="filter-chip" type="button" aria-pressed="false">隐藏已浏览</button>
+      <button id="claimUnseenToggle" class="filter-chip" type="button" aria-pressed="false">可领且未浏览</button>
       <button id="clearVisitedBtn" class="filter-chip" type="button">清空浏览记录</button>
       <button id="shareFilterBtn" class="filter-chip" type="button">复制筛选链接</button>
       <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
@@ -133,6 +135,7 @@ const mediaFilterEls = [...document.querySelectorAll('.filter-chip[data-media]')
 const tabScopeToggleEl = document.getElementById('tabScopeToggle');
 const recentSortToggleEl = document.getElementById('recentSortToggle');
 const clearSearchBtnEl = document.getElementById('clearSearchBtn');
+const resetFilterBtnEl = document.getElementById('resetFilterBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
 const clearStarBtnEl = document.getElementById('clearStarBtn');
@@ -141,6 +144,7 @@ const focusModeToggleEl = document.getElementById('focusModeToggle');
 const denseModeToggleEl = document.getElementById('denseModeToggle');
 const shareFilterBtnEl = document.getElementById('shareFilterBtn');
 const hideVisitedToggleEl = document.getElementById('hideVisitedToggle');
+const claimUnseenToggleEl = document.getElementById('claimUnseenToggle');
 const clearVisitedBtnEl = document.getElementById('clearVisitedBtn');
 const syncStateEl = document.getElementById('syncState');
 let currentData = null;
@@ -151,6 +155,7 @@ let recentSortEnabled = false;
 let focusModeEnabled = false;
 let denseModeEnabled = false;
 let hideVisitedEnabled = false;
+let claimUnseenEnabled = false;
 const STAR_KEY = 'suweb_starred_cards';
 const VISITED_KEY = 'suweb_visited_cards';
 const SANITIZE_CACHE_LIMIT = 120;
@@ -285,8 +290,21 @@ function matchesMediaFilter(card, mediaFilter){
 function resetFilters(){
   currentQuery = '';
   currentMediaFilter = 'all';
+  strictTabScope = false;
+  recentSortEnabled = false;
+  hideVisitedEnabled = false;
+  claimUnseenEnabled = false;
   if (searchInputEl) searchInputEl.value = '';
   mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === 'all'));
+  tabScopeToggleEl?.classList.remove('active');
+  tabScopeToggleEl?.setAttribute('aria-pressed','false');
+  recentSortToggleEl?.classList.remove('active');
+  recentSortToggleEl?.setAttribute('aria-pressed','false');
+  hideVisitedToggleEl?.classList.remove('active');
+  hideVisitedToggleEl?.setAttribute('aria-pressed','false');
+  claimUnseenToggleEl?.classList.remove('active');
+  claimUnseenToggleEl?.setAttribute('aria-pressed','false');
+  if (starLinkFilterChipEl) starLinkFilterChipEl.classList.remove('active');
   if (currentData) applyData(currentData);
   showToast('已重置筛选');
 }
@@ -558,7 +576,8 @@ function applyData(data){
     recentSortEnabled ? '1' : '0',
     focusModeEnabled ? '1' : '0',
     denseModeEnabled ? '1' : '0',
-    hideVisitedEnabled ? '1' : '0'
+    hideVisitedEnabled ? '1' : '0',
+    claimUnseenEnabled ? '1' : '0'
   ].join('::');
   if (renderStateKey === lastRenderStateKey) {
     updateSyncTime();
@@ -568,7 +587,10 @@ function applyData(data){
 
   const tabs=currentData.tabs||[]; tabHelpEl.textContent=tabs[0]?.name||'助力'; tabHangEl.textContent=tabs[1]?.name||'代挂'; tabBotsEl.textContent=tabs[2]?.name||'机器人列表';
   const cards=(currentData.cards||[])
-    .filter(c=>matchesQuery(c, currentQuery) && matchesMediaFilter(c, currentMediaFilter) && (!hideVisitedEnabled || !isCardVisited(c)))
+    .filter(c=>matchesQuery(c, currentQuery)
+      && matchesMediaFilter(c, currentMediaFilter)
+      && (!hideVisitedEnabled || !isCardVisited(c))
+      && (!claimUnseenEnabled || (hasClaimableLink(c) && !isCardVisited(c))))
     .sort((a,b)=>{
       if (!recentSortEnabled) return 0;
       const ta = Date.parse(String(a?.updatedAt || a?.createdAt || '')) || 0;
@@ -589,6 +611,7 @@ function applyData(data){
   safeSetLocalStorage('suweb_focus_mode', focusModeEnabled ? '1' : '0');
   safeSetLocalStorage('suweb_dense_mode', denseModeEnabled ? '1' : '0');
   safeSetLocalStorage('suweb_hide_visited', hideVisitedEnabled ? '1' : '0');
+  safeSetLocalStorage('suweb_claim_unseen', claimUnseenEnabled ? '1' : '0');
   const tabKeys=[(tabs[0]?.key||'help').trim()||'help',(tabs[1]?.key||'hang').trim()||'hang',(tabs[2]?.key||'bots').trim()||'bots'];
   const inTab=(c,key)=>{ const cat=(c.category||'all').trim(); return cat==='all' || cat===key; };
   const list1=cards.filter(c=>inTab(c,tabKeys[0]));
@@ -704,6 +727,7 @@ function restoreSearchState(){
   const focusMode = safeGetLocalStorage('suweb_focus_mode') || '0';
   const denseMode = params.get('dense') ?? (safeGetLocalStorage('suweb_dense_mode') || '0');
   const hideVisited = params.get('hideVisited') ?? (safeGetLocalStorage('suweb_hide_visited') || '0');
+  const claimUnseen = params.get('claimUnseen') ?? (safeGetLocalStorage('suweb_claim_unseen') || '0');
   currentQuery = String(q).trim().toLowerCase();
   currentMediaFilter = ['all','image','video','link','fresh-link','content','today','starred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
@@ -711,6 +735,7 @@ function restoreSearchState(){
   focusModeEnabled = focusMode === '1';
   denseModeEnabled = denseMode === '1';
   hideVisitedEnabled = hideVisited === '1';
+  claimUnseenEnabled = claimUnseen === '1';
   document.body.classList.toggle('dense-mode', denseModeEnabled);
   if (searchInputEl) searchInputEl.value = currentQuery;
   mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
@@ -733,6 +758,10 @@ function restoreSearchState(){
   if (hideVisitedToggleEl) {
     hideVisitedToggleEl.classList.toggle('active', hideVisitedEnabled);
     hideVisitedToggleEl.setAttribute('aria-pressed', hideVisitedEnabled ? 'true' : 'false');
+  }
+  if (claimUnseenToggleEl) {
+    claimUnseenToggleEl.classList.toggle('active', claimUnseenEnabled);
+    claimUnseenToggleEl.setAttribute('aria-pressed', claimUnseenEnabled ? 'true' : 'false');
   }
   if (starLinkFilterChipEl) {
     starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
@@ -773,6 +802,9 @@ if (clearSearchBtnEl) {
     if (currentData) applyData(currentData);
     searchInputEl.focus();
   });
+}
+if (resetFilterBtnEl) {
+  resetFilterBtnEl.addEventListener('click', resetFilters);
 }
 if (randomPickBtnEl) {
   randomPickBtnEl.addEventListener('click', pickRandomVisibleCard);
@@ -828,8 +860,9 @@ if (shareFilterBtnEl) {
     const sort = recentSortEnabled ? '1' : '0';
     const dense = denseModeEnabled ? '1' : '0';
     const hideVisited = hideVisitedEnabled ? '1' : '0';
+    const claimUnseen = claimUnseenEnabled ? '1' : '0';
     const activeTab = encodeURIComponent(currentTabName() || 'help');
-    const url = `${location.origin}${location.pathname}?q=${q}&media=${media}&scope=${scope}&sort=${sort}&dense=${dense}&hideVisited=${hideVisited}&tab=${activeTab}`;
+    const url = `${location.origin}${location.pathname}?q=${q}&media=${media}&scope=${scope}&sort=${sort}&dense=${dense}&hideVisited=${hideVisited}&claimUnseen=${claimUnseen}&tab=${activeTab}`;
     await copyPlainText(url, '筛选链接已复制');
   });
 }
@@ -840,6 +873,15 @@ if (hideVisitedToggleEl) {
     hideVisitedToggleEl.setAttribute('aria-pressed', hideVisitedEnabled ? 'true' : 'false');
     if (currentData) applyData(currentData);
     showToast(hideVisitedEnabled ? '已隐藏已浏览内容' : '已显示已浏览内容');
+  });
+}
+if (claimUnseenToggleEl) {
+  claimUnseenToggleEl.addEventListener('click', () => {
+    claimUnseenEnabled = !claimUnseenEnabled;
+    claimUnseenToggleEl.classList.toggle('active', claimUnseenEnabled);
+    claimUnseenToggleEl.setAttribute('aria-pressed', claimUnseenEnabled ? 'true' : 'false');
+    if (currentData) applyData(currentData);
+    showToast(claimUnseenEnabled ? '已筛选：可领且未浏览' : '已关闭：可领且未浏览');
   });
 }
 if (clearVisitedBtnEl) {
@@ -887,6 +929,15 @@ window.addEventListener('keydown', (e) => {
   if (e.altKey && (e.key === 'r' || e.key === 'R')) {
     e.preventDefault();
     pickRandomVisibleCard();
+    return;
+  }
+  if (e.altKey && (e.key === 'u' || e.key === 'U')) {
+    e.preventDefault();
+    claimUnseenEnabled = !claimUnseenEnabled;
+    claimUnseenToggleEl?.classList.toggle('active', claimUnseenEnabled);
+    claimUnseenToggleEl?.setAttribute('aria-pressed', claimUnseenEnabled ? 'true' : 'false');
+    if (currentData) applyData(currentData);
+    showToast(claimUnseenEnabled ? '已筛选：可领且未浏览' : '已关闭：可领且未浏览');
   }
 });
 if (mediaFilterEls.length) {
@@ -985,7 +1036,10 @@ window.addEventListener('offline', () => {
 });
 
 function shouldSkipAutoRefresh(){
-  return typeof navigator !== 'undefined' && navigator.onLine === false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+  if (document.activeElement === searchInputEl) return true;
+  if (bootstrapInFlight) return true;
+  return false;
 }
 </script>
 </body></html>

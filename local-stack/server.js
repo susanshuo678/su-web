@@ -1075,6 +1075,23 @@ function fillCardsUpdatedAt() {
   return { updated, total: list.length };
 }
 
+function fillMissingCategory() {
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const nowIso = new Date().toISOString();
+  const next = list.map(item => {
+    const category = String(item.category || '').trim();
+    if (category) return item;
+    updated++;
+    return { ...item, category: 'all', updatedAt: nowIso };
+  });
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, total: list.length, category: 'all' };
+}
+
 function fillMissingButtonText() {
   const list = readJson(FILES.cards, []);
   let updated = 0;
@@ -1647,6 +1664,12 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
   if (u.pathname === '/api/admin/cards/fill-updated-at' && req.method === 'POST') {
     if (!auth(req,res)) return;
     const result = fillCardsUpdatedAt();
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
+  }
+
+  if (u.pathname === '/api/admin/cards/fill-category' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = fillMissingCategory();
     return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 
