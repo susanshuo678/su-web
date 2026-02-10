@@ -31,6 +31,11 @@ const LOGIN_WINDOW_MS = 10 * 60 * 1000; // 10min
 const LOGIN_MAX_ATTEMPTS = 10;
 const LOGIN_ATTEMPTS_MAX_KEYS = 5000;
 
+const uploadAttempts = new Map();
+const UPLOAD_WINDOW_MS = 60 * 1000;
+const UPLOAD_MAX_PER_WINDOW = 20;
+const UPLOAD_ATTEMPTS_MAX_KEYS = 5000;
+
 function now() { return Date.now(); }
 
 let bootstrapCache = null;
@@ -234,6 +239,35 @@ function pruneTokens() {
     for (let i = 0; i < sorted.length - MAX_TOKENS; i++) tokens.delete(sorted[i][0]);
   }
 }
+function pruneUploadAttempts() {
+  const t = now();
+  for (const [ip, attempts] of uploadAttempts.entries()) {
+    const fresh = attempts.filter(ts => t - ts < UPLOAD_WINDOW_MS);
+    if (fresh.length) uploadAttempts.set(ip, fresh);
+    else uploadAttempts.delete(ip);
+  }
+  if (uploadAttempts.size > UPLOAD_ATTEMPTS_MAX_KEYS) {
+    const keys = [...uploadAttempts.keys()];
+    for (let i = 0; i < keys.length - UPLOAD_ATTEMPTS_MAX_KEYS; i++) uploadAttempts.delete(keys[i]);
+  }
+}
+
+function canUploadNow(ip) {
+  const t = now();
+  const bucket = (uploadAttempts.get(ip) || []).filter(ts => t - ts < UPLOAD_WINDOW_MS);
+  if (bucket.length >= UPLOAD_MAX_PER_WINDOW) {
+    const oldest = bucket[0] || t;
+    const resetSec = Math.max(1, Math.ceil((UPLOAD_WINDOW_MS - (t - oldest)) / 1000));
+    uploadAttempts.set(ip, bucket);
+    return { ok: false, remaining: 0, resetSec };
+  }
+  const next = [...bucket, t];
+  uploadAttempts.set(ip, next);
+  const oldest = next[0] || t;
+  const resetSec = Math.max(1, Math.ceil((UPLOAD_WINDOW_MS - (t - oldest)) / 1000));
+  return { ok: true, remaining: Math.max(0, UPLOAD_MAX_PER_WINDOW - next.length), resetSec };
+}
+
 function pruneLoginAttempts() {
   const t = now();
   for (const [ip, attempts] of loginAttempts.entries()) {
@@ -250,6 +284,7 @@ function pruneLoginAttempts() {
 setInterval(() => {
   pruneTokens();
   pruneLoginAttempts();
+  pruneUploadAttempts();
 }, 30 * 60 * 1000).unref();
 
 const MIME = {
@@ -714,6 +749,106 @@ function normalizeCardSummaries() {
   return { updated, total: list.length };
 }
 
+function normalizeComparableText(v) {
+  return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function getCardDuplicateReport() {
+  const cards = getSortedCollection('cards');
+  const byTitle = new Map();
+  const byLink = new Map();
+
+  for (const card of cards) {
+    const tKey = normalizeComparableText(card.title);
+    if (tKey) {
+      if (!byTitle.has(tKey)) byTitle.set(tKey, []);
+      byTitle.get(tKey).push(card);
+    }
+    const lKey = normalizeComparableText(card.link);
+    if (lKey && lKey !== '#') {
+      if (!byLink.has(lKey)) byLink.set(lKey, []);
+      byLink.get(lKey).push(card);
+    }
+  }
+
+  const titleDuplicates = [...byTitle.entries()]
+    .filter(([, list]) => list.length > 1)
+    .map(([key, list]) => ({
+      key,
+      count: list.length,
+      ids: list.map(x => x.id),
+      titles: list.map(x => x.title || ''),
+      enabledCount: list.filter(x => x.enabled !== false).length
+    }));
+
+  const linkDuplicates = [...byLink.entries()]
+    .filter(([, list]) => list.length > 1)
+    .map(([key, list]) => ({
+      key,
+      count: list.length,
+      ids: list.map(x => x.id),
+      titles: list.map(x => x.title || ''),
+      enabledCount: list.filter(x => x.enabled !== false).length
+    }));
+
+  return {
+    totalCards: cards.length,
+    titleDuplicateGroups: titleDuplicates.length,
+    linkDuplicateGroups: linkDuplicates.length,
+    titleDuplicates,
+    linkDuplicates
+  };
+}
+
+function disableDuplicateCards(mode = 'title') {
+  const cards = readJson(FILES.cards, []);
+  const map = new Map();
+  const keyOf = (item) => {
+    if (mode === 'link') return normalizeComparableText(item.link);
+    return normalizeComparableText(item.title);
+  };
+
+  for (const item of cards) {
+    const k = keyOf(item);
+    if (!k || k === '#') continue;
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(item);
+  }
+
+  const disableSet = new Set();
+  for (const list of map.values()) {
+    if (list.length <= 1) continue;
+    const sorted = [...list].sort((a, b) => {
+      const byEnabled = Number(b.enabled !== false) - Number(a.enabled !== false);
+      if (byEnabled !== 0) return byEnabled;
+      const byOrder = normalizeOrder(a.order) - normalizeOrder(b.order);
+      if (byOrder !== 0) return byOrder;
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+    const keeper = sorted[0]?.id;
+    for (const x of sorted.slice(1)) {
+      if ((x.enabled !== false) && x.id !== keeper) disableSet.add(String(x.id || ''));
+    }
+  }
+
+  if (!disableSet.size) return { mode, updated: 0, total: cards.length };
+
+  let updated = 0;
+  const next = cards.map(item => {
+    const id = String(item.id || '');
+    if (!disableSet.has(id)) return item;
+    if (item.enabled === false) return item;
+    updated++;
+    return { ...item, enabled: false };
+  });
+
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { mode, updated, total: cards.length };
+}
+
 function buildExportPayload() {
   return {
     exportedAt: new Date().toISOString(),
@@ -995,6 +1130,22 @@ const backend = http.createServer((req, res) => {
     }, 'private, max-age=3, stale-while-revalidate=15');
   }
 
+  if (u.pathname === '/api/admin/cards/duplicates' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const data = getCardDuplicateReport();
+    return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+  if (u.pathname === '/api/admin/cards/duplicates-disable' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ mode }) => {
+      const m = String(mode || 'title');
+      if (m !== 'title' && m !== 'link') return send(res, 400, JSON.stringify({ error: 'mode must be title or link' }));
+      const result = disableDuplicateCards(m);
+      return send(res, 200, JSON.stringify({ ok: true, ...result }));
+    }).catch((err)=>handleParseError(res, err));
+  }
+
   if (u.pathname === '/api/change-password' && req.method === 'POST') {
     if (!auth(req,res)) return;
     return parseBody(req).then(({ password }) => {
@@ -1068,6 +1219,15 @@ const backend = http.createServer((req, res) => {
 
   if (u.pathname === '/api/upload' && req.method === 'POST') {
     if (!auth(req,res)) return;
+    const ip = getClientIp(req);
+    const uploadState = canUploadNow(ip);
+    res.setHeader('X-Upload-RateLimit-Limit', String(UPLOAD_MAX_PER_WINDOW));
+    res.setHeader('X-Upload-RateLimit-Remaining', String(uploadState.remaining));
+    res.setHeader('X-Upload-RateLimit-Reset', String(uploadState.resetSec));
+    if (!uploadState.ok) {
+      res.setHeader('Retry-After', String(uploadState.resetSec));
+      return send(res, 429, JSON.stringify({ error: '上传过于频繁，请稍后重试', retryAfterSec: uploadState.resetSec }));
+    }
     return parseBody(req).then(async ({ filename, contentBase64 }) => {
       if (!filename || !contentBase64) return send(res,400,JSON.stringify({error:'missing fields'}));
       const originalName = String(filename);

@@ -40,7 +40,7 @@
 .skeleton{position:relative;overflow:hidden;background:#eef2fb;border-radius:10px;min-height:72px;margin-top:8px}
 .skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);animation:shimmer 1.25s infinite}
 @keyframes shimmer{100%{transform:translateX(100%)}}
-.toast{position:fixed;left:50%;bottom:146px;transform:translateX(-50%);background:rgba(20,30,54,.9);color:#fff;padding:8px 12px;border-radius:999px;font-size:12px;z-index:90;display:none;max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast{position:fixed;left:50%;bottom:146px;transform:translateX(-50%);background:rgba(20,30,54,.9);color:#fff;padding:8px 12px;border-radius:999px;font-size:12px;z-index:90;display:none;max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hl{background:#fff2a8;color:#4b3d00;border-radius:4px;padding:0 2px}
 </style>
 </head>
 <body>
@@ -182,6 +182,30 @@ function updateNetworkUi(){
   if (syncEl && offline) syncEl.textContent = '当前离线';
 }
 
+function highlightText(raw, query){
+  const text = String(raw || "");
+  const q = String(query || "").trim();
+  if (!q) return esc(text);
+  const lower = text.toLowerCase();
+  const qLower = q.toLowerCase();
+  let i = 0;
+  let out = "";
+  while (i < text.length) {
+    const hit = lower.indexOf(qLower, i);
+    if (hit === -1) { out += esc(text.slice(i)); break; }
+    out += esc(text.slice(i, hit));
+    out += `<mark class="hl">${esc(text.slice(hit, hit + q.length))}</mark>`;
+    i = hit + q.length;
+  }
+  return out;
+}
+
+function currentTabName(){
+  const active = document.querySelector('.tabpage.active');
+  if (!active) return "";
+  return String(active.id || "").replace('page-','');
+}
+
 function sanitizeHtml(html=''){
   let out=String(html||'');
   out=out.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi,'');
@@ -196,7 +220,7 @@ function sanitizeHtml(html=''){
 
 function renderShortcuts(list=[]){if(!list.length) return '<p class="empty">暂无快捷入口</p>';return `<div class="grid4">${list.map(x=>`<a class="shortcut" href="${esc(safeUrl(x.link,'#'))}" target="_blank" rel="noopener noreferrer"><div class="icon">${x.icon?`<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(x.icon,''))}" alt="">`:'⚡'}</div><span>${esc(x.name||'入口')}</span></a>`).join('')}</div>`;}
 function renderAds(list=[]){if(!list.length) return ''; const top=list[0]; return `<a class="ad" href="${esc(safeUrl(top.link,'#'))}" target="_blank" rel="noopener noreferrer">${top.image?`<img loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(top.image,''))}" alt="">`:''}<span class="t">${esc(top.title||'推荐')}</span></a>`;}
-function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>{const safeLink=safeUrl(c.link,'#');const hasLink=!!(c.link&&c.link!=='#'&&safeLink!=='#');return `<article class="card item"><h3>${esc(c.title||'未命名')}</h3><p class="sub">${esc(c.summary||'')}</p>${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}${hasLink?`<div class="card-actions"><a class="btn" href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a><button class="btn-lite" type="button" onclick="copyCardLink('${esc(safeLink)}')">复制链接</button></div>`:''}</article>`;}).join('')}</div>`;}
+function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>{const safeLink=safeUrl(c.link,'#');const hasLink=!!(c.link&&c.link!=='#'&&safeLink!=='#');return `<article class="card item"><h3>${highlightText(c.title||'未命名', currentQuery)}</h3><p class="sub">${highlightText(c.summary||'', currentQuery)}</p>${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}${hasLink?`<div class="card-actions"><a class="btn" href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a><button class="btn-lite" type="button" onclick="copyCardLink('${esc(safeLink)}')">复制链接</button></div>`:''}</article>`;}).join('')}</div>`;}
 
 let bootstrapInFlight = null;
 let bootstrapCtrl = null;
@@ -330,7 +354,11 @@ function applyData(data){
 
   const tabs=currentData.tabs||[]; tabHelpEl.textContent=tabs[0]?.name||'助力'; tabHangEl.textContent=tabs[1]?.name||'代挂'; tabBotsEl.textContent=tabs[2]?.name||'机器人列表';
   const cards=(currentData.cards||[]).filter(c=>matchesQuery(c, currentQuery) && matchesMediaFilter(c, currentMediaFilter));
-  if (resultMetaEl) resultMetaEl.textContent = `${cards.length} 条内容`;
+  if (resultMetaEl) {
+    const scopeText = strictTabScope ? '当前栏目' : '跨栏目';
+    const mediaText = currentMediaFilter === 'all' ? '全部类型' : currentMediaFilter;
+    resultMetaEl.textContent = `${cards.length} 条 · ${scopeText} · ${mediaText}`;
+  }
   safeSetLocalStorage('suweb_search_query', currentQuery);
   safeSetLocalStorage('suweb_media_filter', currentMediaFilter);
   safeSetLocalStorage('suweb_strict_tab_scope', strictTabScope ? '1' : '0');
@@ -492,6 +520,13 @@ window.addEventListener('keydown', (e) => {
     searchInputEl.value = '';
     currentQuery = '';
     if (currentData) applyData(currentData);
+  }
+  if (document.activeElement === searchInputEl) return;
+  if (['1','2','3'].includes(e.key)) {
+    const map = { '1': 'help', '2': 'hang', '3': 'bots' };
+    const tab = map[e.key];
+    const btn = [...document.querySelectorAll('.nav-btn')].find(x => (x.getAttribute('onclick')||'').includes(`'${tab}'`));
+    if (btn) switchTab(tab, btn);
   }
 });
 if (mediaFilterEls.length) {
