@@ -133,7 +133,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
 
       <section id="cardsView" class="view panel">
         <h3>优惠卡片管理（标题 + 三行摘要）</h3>
-        <div class="row" style="margin-bottom:8px"><input id="cardSearch" placeholder="搜索卡片（ID/标题/分类/摘要）" oninput="onCardSearchInput()"/><button class="btn" type="button" onclick="clearCardSearch()">清空</button><button class="btn" type="button" onclick="resequenceCardsByCurrentView()">按当前视图重排</button><button class="btn" type="button" onclick="batchDisableBySearch()">按搜索批量停用</button><button class="btn ok" type="button" onclick="batchEnableBySearch()">按搜索批量启用</button><input id="searchTargetCategory" placeholder="搜索结果改分类（key）" style="max-width:220px"/><button class="btn" type="button" onclick="batchMoveCategoryBySearch()">按搜索批量改分类</button></div>
+        <div class="row" style="margin-bottom:8px"><input id="cardSearch" placeholder="搜索卡片（ID/标题/分类/摘要）" oninput="onCardSearchInput()"/><button class="btn" type="button" onclick="clearCardSearch()">清空</button><button class="btn" type="button" onclick="resequenceCardsByCurrentView()">按当前视图重排</button><button class="btn" type="button" onclick="batchDisableBySearch()">按搜索批量停用</button><button class="btn ok" type="button" onclick="batchEnableBySearch()">按搜索批量启用</button><button class="btn" type="button" onclick="batchMoveCategoryBySearch()">按搜索批量改分类</button></div>
         <div class="row" style="margin-bottom:8px">
           <input id="searchTargetButtonText" placeholder="搜索结果按钮文案（如：去领取）" style="max-width:220px"/>
           <button class="btn" type="button" onclick="batchUpdateButtonTextBySearch()">按搜索批量改按钮文案</button>
@@ -146,7 +146,10 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         </div>
         <p id="cardSearchMeta" class="muted" style="margin:0 0 6px">显示 0 / 0（快捷键：Ctrl/Cmd+K 聚焦，Esc 清空）</p>
         <div class="row" style="margin-bottom:8px">
-          <input id="bulkCategoryKey" placeholder="按分类批量启停（category key）"/>
+          <input id="bulkCategoryKey" placeholder="按分类批量启停（category key）" list="categoryKeyList"/>
+          <input id="searchTargetCategory" placeholder="搜索结果改分类（key）" style="max-width:220px" list="categoryKeyList"/>
+          <button class="btn" type="button" onclick="loadCategoryOptions(true)">刷新分类候选</button>
+          <datalist id="categoryKeyList"></datalist>
           <button class="btn" type="button" onclick="toggleCardsByCategory(true)">按分类批量启用</button>
           <button class="btn danger" type="button" onclick="toggleCardsByCategory(false)">按分类批量停用</button>
           <button class="btn ok" type="button" onclick="touchCardsByCategory()">按分类刷新更新时间</button>
@@ -337,6 +340,7 @@ async function doLogin(){
       loadAll();
       refreshSummary();
       loadCategoryStats();
+      loadCategoryOptions();
       loadRecentCards();
       loadBootstrapMeta();
       loadRuntimeMetrics();
@@ -667,6 +671,19 @@ async function disableDuplicateCards(mode){
 }
 function disableDuplicateCardsByTitle(){ return disableDuplicateCards('title'); }
 function disableDuplicateCardsByLink(){ return disableDuplicateCards('link'); }
+
+async function loadCategoryOptions(withToast=false){
+  const list = document.getElementById('categoryKeyList');
+  if (!list) return;
+  try {
+    const r = await req('/api/admin/cards/category-options', 'GET');
+    const rows = Array.isArray(r.rows) ? r.rows : [];
+    list.innerHTML = rows.map(x => `<option value="${esc(x.key || '')}">${esc(x.name || x.key || '')}（总${x.count || 0}/启用${x.enabled || 0}）</option>`).join('');
+    if (withToast) toast(`分类候选已刷新：${rows.length} 项`);
+  } catch (e) {
+    if (withToast) toast(`分类候选加载失败：${e?.message || '网络异常'}`);
+  }
+}
 
 async function loadCategoryStats(){
   const box = document.getElementById('categoryStatsBox');

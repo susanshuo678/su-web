@@ -31,6 +31,9 @@
 .search-wrap{position:sticky;top:8px;z-index:30;background:rgba(246,248,252,.92);backdrop-filter:blur(4px);padding:6px 0 8px}
 .search-row{display:flex;gap:8px;align-items:center}.search{flex:1;width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-size:14px;background:#fff}.search-clear{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;color:#4f607f;font-size:12px;cursor:pointer}
 .filter-row{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.search-wrap.compact .filter-row{display:none}
+.filter-collapse-tip{margin-top:6px;color:#6a7898;font-size:12px;display:none}
+.search-wrap.compact .filter-collapse-tip{display:block}
 .filter-chip{border:1px solid var(--line);background:#fff;color:#42506f;border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer}
 .filter-chip.active{background:#2d63df;color:#fff;border-color:#2d63df}
 .result-meta{margin-left:auto;color:#687998;font-size:12px}
@@ -53,6 +56,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <input id="cardSearch" class="search" placeholder="搜索内容（标题/摘要）" aria-label="搜索内容">
       <button id="randomPickBtn" class="search-clear" type="button" aria-label="随机看看">随机</button>
       <button id="quickClaimBtn" class="search-clear" type="button" aria-label="只看可领取">只看可领</button>
+      <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="copyAllLinksBtn" class="search-clear" type="button" aria-label="复制全部可领链接">复制可领</button>
       <button id="exportVisibleBtn" class="search-clear" type="button" aria-label="导出当前筛选JSON">导出JSON</button>
@@ -85,6 +89,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="shareFilterBtn" class="filter-chip" type="button">复制筛选链接</button>
       <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
     </div>
+    <div id="filterCollapseTip" class="filter-collapse-tip">筛选栏已折叠，点击“折叠筛选”按钮可展开。</div>
   </div>
   <section id="page-help" class="tabpage active"><section class="card"><p class="empty">内容加载中...</p><div class="skeleton"></div><div class="skeleton"></div></section></section>
   <section id="page-hang" class="tabpage"><section class="card"><p class="empty">内容加载中...</p><div class="skeleton"></div></section></section>
@@ -146,6 +151,8 @@ const clearSearchBtnEl = document.getElementById('clearSearchBtn');
 const resetFilterBtnEl = document.getElementById('resetFilterBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
 const quickClaimBtnEl = document.getElementById('quickClaimBtn');
+const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
+const filterCollapseTipEl = document.getElementById('filterCollapseTip');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
 const copyAllLinksBtnEl = document.getElementById('copyAllLinksBtn');
 const exportVisibleBtnEl = document.getElementById('exportVisibleBtn');
@@ -163,6 +170,7 @@ let currentQuery = '';
 let currentMediaFilter = 'all';
 let strictTabScope = false;
 let recentSortEnabled = false;
+let filterBarCollapsed = false;
 let focusModeEnabled = false;
 let denseModeEnabled = false;
 let hideVisitedEnabled = false;
@@ -193,6 +201,20 @@ function updateQuickClaimBtn(){
   quickClaimBtnEl.classList.toggle('active', active);
   quickClaimBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickClaimBtnEl.textContent = active ? '取消只看' : '只看可领';
+}
+
+function updateFilterBarUi(){
+  const wrap = document.querySelector('.search-wrap');
+  if (!wrap) return;
+  wrap.classList.toggle('compact', !!filterBarCollapsed);
+  if (toggleFilterBarBtnEl) {
+    toggleFilterBarBtnEl.classList.toggle('active', !!filterBarCollapsed);
+    toggleFilterBarBtnEl.setAttribute('aria-pressed', filterBarCollapsed ? 'true' : 'false');
+    toggleFilterBarBtnEl.textContent = filterBarCollapsed ? '展开筛选' : '折叠筛选';
+  }
+  if (filterCollapseTipEl) {
+    filterCollapseTipEl.style.display = filterBarCollapsed ? 'block' : 'none';
+  }
 }
 
 function formatTabLabel(name, count){
@@ -674,6 +696,7 @@ function applyData(data){
   safeSetLocalStorage('suweb_media_filter', currentMediaFilter);
   safeSetLocalStorage('suweb_strict_tab_scope', strictTabScope ? '1' : '0');
   safeSetLocalStorage('suweb_recent_sort', recentSortEnabled ? '1' : '0');
+  safeSetLocalStorage('suweb_filter_bar_collapsed', filterBarCollapsed ? '1' : '0');
   safeSetLocalStorage('suweb_focus_mode', focusModeEnabled ? '1' : '0');
   safeSetLocalStorage('suweb_dense_mode', denseModeEnabled ? '1' : '0');
   safeSetLocalStorage('suweb_hide_visited', hideVisitedEnabled ? '1' : '0');
@@ -750,6 +773,15 @@ async function init(force=false){
         } catch {
           safeRemoveLocalStorage('suweb_bootstrap_cache');
           safeRemoveLocalStorage('suweb_bootstrap_etag');
+          const forced = await fetchBootstrapWithRetry(true, bootstrapCtrl.signal);
+          if (!forced?.data) throw new Error('cache broken and refetch failed');
+          if (forced.etag) safeSetLocalStorage('suweb_bootstrap_etag', forced.etag);
+          safeSetLocalStorage('suweb_bootstrap_cache', JSON.stringify({ts:Date.now(),data:forced.data}));
+          staleNoticeEl.style.display='none';
+          applyData(forced.data);
+          updateSyncState('缓存异常，已自动拉取最新内容');
+          bootstrapAppliedSeq = reqSeq;
+          return;
         }
       }
       const data = result.data;
@@ -794,6 +826,7 @@ function restoreSearchState(){
   const media = params.get('media') ?? (safeGetLocalStorage('suweb_media_filter') || 'all');
   const strictScope = params.get('scope') ?? (safeGetLocalStorage('suweb_strict_tab_scope') || '0');
   const recentSort = params.get('sort') ?? (safeGetLocalStorage('suweb_recent_sort') || '0');
+  const filterCollapsed = params.get('compactFilter') ?? (safeGetLocalStorage('suweb_filter_bar_collapsed') || '0');
   const focusMode = safeGetLocalStorage('suweb_focus_mode') || '0';
   const denseMode = params.get('dense') ?? (safeGetLocalStorage('suweb_dense_mode') || '0');
   const hideVisited = params.get('hideVisited') ?? (safeGetLocalStorage('suweb_hide_visited') || '0');
@@ -802,6 +835,7 @@ function restoreSearchState(){
   currentMediaFilter = ['all','image','video','link','media-link','fresh-link','fresh-14','content','today','today-link','new-24h','starred','unstarred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
+  filterBarCollapsed = filterCollapsed === '1';
   focusModeEnabled = focusMode === '1';
   denseModeEnabled = denseMode === '1';
   hideVisitedEnabled = hideVisited === '1';
@@ -833,6 +867,7 @@ function restoreSearchState(){
     claimUnseenToggleEl.classList.toggle('active', claimUnseenEnabled);
     claimUnseenToggleEl.setAttribute('aria-pressed', claimUnseenEnabled ? 'true' : 'false');
   }
+  updateFilterBarUi();
   if (starLinkFilterChipEl) {
     starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
   }
@@ -887,6 +922,13 @@ if (quickClaimBtnEl) {
     if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'link' ? '已切到只看可领取' : '已恢复全部内容');
+  });
+}
+if (toggleFilterBarBtnEl) {
+  toggleFilterBarBtnEl.addEventListener('click', () => {
+    filterBarCollapsed = !filterBarCollapsed;
+    updateFilterBarUi();
+    safeSetLocalStorage('suweb_filter_bar_collapsed', filterBarCollapsed ? '1' : '0');
   });
 }
 if (copyTabDigestBtnEl) {

@@ -1111,6 +1111,31 @@ function getCardCategoryStats() {
   return rows;
 }
 
+function getAdminCategoryOptions() {
+  const tabs = getSortedCollection('tabs');
+  const cards = getSortedCollection('cards');
+  const byCategory = new Map();
+  for (const card of cards) {
+    const key = String(card.category || '').trim() || 'all';
+    if (!byCategory.has(key)) byCategory.set(key, { key, count: 0, enabled: 0, fromTab: false, name: key });
+    const row = byCategory.get(key);
+    row.count++;
+    if (card.enabled !== false) row.enabled++;
+  }
+  for (const tab of tabs) {
+    const key = String(tab.key || '').trim();
+    if (!key) continue;
+    if (!byCategory.has(key)) byCategory.set(key, { key, count: 0, enabled: 0, fromTab: true, name: String(tab.name || key) });
+    const row = byCategory.get(key);
+    row.fromTab = true;
+    row.name = String(tab.name || key);
+  }
+  return {
+    updatedAt: getLatestDataUpdatedAt(),
+    rows: [...byCategory.values()].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key))
+  };
+}
+
 function getRecentCards(limit = 10) {
   const safeLimit = Math.min(50, Math.max(1, Number(limit) || 10));
   const ver = getFileVersionKey(FILES.cards);
@@ -1704,6 +1729,11 @@ const backend = http.createServer((req, res) => {
       rows,
       updatedAt: getLatestDataUpdatedAt()
     }, 'private, max-age=3, stale-while-revalidate=15');
+  }
+
+  if (u.pathname === '/api/admin/cards/category-options' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    return sendJsonWithEtag(req, res, getAdminCategoryOptions(), 'private, max-age=5, stale-while-revalidate=30');
   }
 
   if (u.pathname === '/api/admin/validate-links' && (req.method === 'GET' || req.method === 'HEAD')) {
