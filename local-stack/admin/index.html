@@ -83,7 +83,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="normalizeAllOrders()">统一重排顺序</button>
           <button class="btn" onclick="checkCardDuplicates()">重复卡片体检</button>
           <button class="btn" onclick="loadCategoryStats()">分类分布统计</button>
-          <button class="btn" onclick="loadQualityOverview()">内容质量概览</button>
+          <button class="btn" onclick="loadQualityOverview()">内容质量概览</button><button class="btn" onclick="loadTextMediaBalance()">图文结构分布</button>
           <button class="btn" onclick="loadOpsScoreSummary()">运营健康分</button>
           <button class="btn" onclick="loadShortSummaryCards()">短摘要巡检</button>
           <button class="btn" onclick="loadEmptySummaryCards()">空摘要巡检</button>
@@ -159,6 +159,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div id="categoryStatsBox" class="muted" style="margin-top:10px"></div>
         <div id="staleCardsBox" class="muted" style="margin-top:10px"></div>
         <div id="qualityOverviewBox" class="muted" style="margin-top:10px"></div>
+        <div id="textMediaBalanceBox" class="muted" style="margin-top:10px">点击“图文结构分布”查看</div>
         <div id="opsScoreBox" class="muted" style="margin-top:10px"></div>
         <div id="shortSummaryBox" class="muted" style="margin-top:10px"></div>
         <div id="emptySummaryBox" class="muted" style="margin-top:10px"></div>
@@ -1051,6 +1052,24 @@ async function loadQualityOverview(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">内容质量概览加载失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`内容质量概览加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function loadTextMediaBalance(){
+  const box = document.getElementById('textMediaBalanceBox');
+  if (box) box.innerHTML = '图文结构分布加载中...';
+  try {
+    const r = await req('/api/admin/cards/text-media-balance', 'GET');
+    const ratios = r.ratios || {};
+    if (box) box.innerHTML = `
+      <div>总卡片 ${r.total || 0}</div>
+      <div>纯文本 ${r.textOnly || 0}（${ratios.textOnly || 0}%） · 纯媒体 ${r.mediaOnly || 0}（${ratios.mediaOnly || 0}%）</div>
+      <div>图文混合 ${r.mixed || 0}（${ratios.mixed || 0}%） · 空内容 ${r.empty || 0}（${ratios.empty || 0}%）</div>
+      <div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('图文结构分布已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">图文结构分布加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`图文结构分布加载失败：${e?.message || '网络异常'}`);
   }
 }
 
