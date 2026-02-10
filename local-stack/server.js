@@ -871,7 +871,7 @@ function getLatestDataUpdatedAt() {
 }
 
 function searchCardsForAdmin(query = '', category = '', limit = 30) {
-  const q = String(query || '').trim().toLowerCase();
+  const q = String(query || '').trim().slice(0, 80).toLowerCase();
   const cat = String(category || '').trim().toLowerCase();
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 30));
   const cacheKey = `${q}::${cat}::${safeLimit}`;
@@ -998,6 +998,48 @@ function getClaimDomainStats(category = '', limit = 12) {
     generatedAt: new Date().toISOString()
   };
   claimDomainStatsCache.set(ver, data);
+  return data;
+}
+
+
+function getLinkSummaryGapReport(limit = 20) {
+  const safeLimit = Math.min(80, Math.max(1, Number(limit) || 20));
+  const ver = `${getFileVersionKey(FILES.cards)}::link-summary-gap::${safeLimit}`;
+  const hit = emptySummaryCache.get(ver);
+  if (hit) return hit;
+
+  const cards = getSortedCollection('cards').filter(item => item.enabled !== false);
+  const withLinkNoSummary = [];
+  const withSummaryNoLink = [];
+
+  for (const item of cards) {
+    const link = String(item.link || '').trim();
+    const summary = String(item.summary || '').replace(/\s+/g, ' ').trim();
+    const hasLink = !!link && link !== '#';
+    const hasSummary = summary.length >= 8;
+    const row = {
+      id: String(item.id || ''),
+      title: String(item.title || ''),
+      category: String(item.category || ''),
+      updatedAt: String(item.updatedAt || item.createdAt || '')
+    };
+    if (hasLink && !hasSummary) withLinkNoSummary.push(row);
+    if (!hasLink && hasSummary) withSummaryNoLink.push(row);
+  }
+
+  const data = {
+    generatedAt: new Date().toISOString(),
+    enabledTotal: cards.length,
+    withLinkNoSummary: {
+      total: withLinkNoSummary.length,
+      items: withLinkNoSummary.slice(0, safeLimit)
+    },
+    withSummaryNoLink: {
+      total: withSummaryNoLink.length,
+      items: withSummaryNoLink.slice(0, safeLimit)
+    }
+  };
+  emptySummaryCache.set(ver, data);
   return data;
 }
 
@@ -2496,6 +2538,12 @@ const backend = http.createServer((req, res) => {
     const limit = Math.min(50, Math.max(3, Number(u.searchParams.get('limit') || 12)));
     const data = getClaimDomainStats(category, limit);
     return sendJsonWithEtag(req, res, data, 'private, max-age=3, stale-while-revalidate=20');
+  }
+
+  if (u.pathname === '/api/admin/cards/link-summary-gaps' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const limit = Math.min(80, Math.max(1, Number(u.searchParams.get('limit') || 20)));
+    return sendJsonWithEtag(req, res, getLinkSummaryGapReport(limit), 'private, max-age=3, stale-while-revalidate=20');
   }
 
   if (u.pathname === '/api/admin/cards/actionability-summary' && (req.method === 'GET' || req.method === 'HEAD')) {

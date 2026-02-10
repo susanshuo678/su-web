@@ -88,6 +88,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="loadShortSummaryCards()">短摘要巡检</button>
           <button class="btn" onclick="loadEmptySummaryCards()">空摘要巡检</button>
           <button class="btn" onclick="loadActionabilitySummary()">可领率看板</button>
+          <button class="btn" onclick="loadLinkSummaryGaps()">链接/摘要缺口</button>
           <button class="btn" onclick="loadPublishReadiness()">发布就绪检查</button>
           <button class="btn" onclick="loadRecentUpdateFeed()">24h更新清单</button>
           <button class="btn ok" onclick="copyOpsDigest()">复制运营摘要</button>
@@ -162,6 +163,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div id="shortSummaryBox" class="muted" style="margin-top:10px"></div>
         <div id="emptySummaryBox" class="muted" style="margin-top:10px"></div>
         <div id="actionabilityBox" class="muted" style="margin-top:10px"></div>
+        <div id="linkSummaryGapBox" class="muted" style="margin-top:10px"></div>
         <div id="publishReadinessBox" class="muted" style="margin-top:10px"></div>
         <div id="recentUpdateFeedBox" class="muted" style="margin-top:10px"></div>
         <div id="claimDomainBox" class="muted" style="margin-top:10px"></div>
@@ -397,6 +399,7 @@ async function doLogin(){
       loadShortSummaryCards();
       loadEmptySummaryCards();
       loadActionabilitySummary();
+      loadLinkSummaryGaps();
       loadPublishReadiness();
       loadRecentUpdateFeed();
       restoreActiveView();
@@ -873,6 +876,28 @@ async function loadUpdatedRange(){
   }
 }
 
+
+async function loadLinkSummaryGaps(){
+  const box = document.getElementById('linkSummaryGapBox');
+  if (box) box.innerHTML = '链接/摘要缺口加载中...';
+  try {
+    const r = await req('/api/admin/cards/link-summary-gaps?limit=8', 'GET');
+    const withLinkNoSummary = r.withLinkNoSummary || {};
+    const withSummaryNoLink = r.withSummaryNoLink || {};
+    const a = Array.isArray(withLinkNoSummary.items) ? withLinkNoSummary.items : [];
+    const b = Array.isArray(withSummaryNoLink.items) ? withSummaryNoLink.items : [];
+    const listA = a.length ? `<ul>${a.map(x=>`<li><code>${esc(x.id||'')}</code> ${esc(x.title||'未命名')} · 分类:${esc(x.category||'-')}</li>`).join('')}</ul>` : '<div class="muted">未发现“有链接但摘要弱”卡片</div>';
+    const listB = b.length ? `<ul>${b.map(x=>`<li><code>${esc(x.id||'')}</code> ${esc(x.title||'未命名')} · 分类:${esc(x.category||'-')}</li>`).join('')}</ul>` : '<div class="muted">未发现“有摘要但缺链接”卡片</div>';
+    if (box) box.innerHTML = `
+      <div>启用卡片：${r.enabledTotal||0} · 有链接但摘要弱：${withLinkNoSummary.total||0} · 有摘要但缺链接：${withSummaryNoLink.total||0}</div>
+      <div style="margin-top:6px"><b>有链接但摘要弱</b>${listA}</div>
+      <div style="margin-top:6px"><b>有摘要但缺链接</b>${listB}</div>
+      <div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">链接/摘要缺口加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`链接/摘要缺口加载失败：${e?.message || '网络异常'}`);
+  }
+}
 
 async function loadPublishReadiness(){
   const box = document.getElementById('publishReadinessBox');

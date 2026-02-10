@@ -69,6 +69,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="quickClaimNew24Btn" class="search-clear" type="button" aria-label="只看可领取且24小时内更新">可领+24h</button>
       <button id="quickClaimNew48Btn" class="search-clear" type="button" aria-label="只看可领取且48小时内更新">可领+48h</button>
       <button id="quickClaimTextBtn" class="search-clear" type="button" aria-label="只看可领取且纯文本">可领纯文</button>
+      <button id="quickLinkSummaryBtn" class="search-clear" type="button" aria-label="只看可领取且摘要完整">可领+摘要</button>
       <button id="quickClaimRandomBtn" class="search-clear" type="button" aria-label="随机一个可领取">随机可领</button>
       <button id="quickDatedBtn" class="search-clear" type="button" aria-label="只看有更新时间">有更新时间</button>
       <button id="quickShortSummaryBtn" class="search-clear" type="button" aria-label="只看短摘要内容">短摘要</button>
@@ -81,7 +82,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
-    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+Y 切 7天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+T 切当前栏目范围，Alt+L 续看，Alt+W 切 24h NEW，Alt+E 切 48h NEW，Alt+D 切 有更新时间，Alt+N 切 可领+24h，Alt+Q 切 可领+48h，Alt+X 切 空摘要，Alt+M 开关自动刷新。</div>
+    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+Y 切 7天更新，Alt+J 切 30天未更，Alt+G 切 7天可领，Alt+T 切当前栏目范围，Alt+L 续看，Alt+W 切 24h NEW，Alt+E 切 48h NEW，Alt+D 切 有更新时间，Alt+N 切 可领+24h，Alt+Q 切 可领+48h，Alt+K 切 可领+摘要，Alt+X 切 空摘要，Alt+M 开关自动刷新。</div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
       <button class="filter-chip" data-media="image" type="button">含图片</button>
@@ -105,6 +106,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="claim-new24" type="button">可领+24h</button>
       <button class="filter-chip" data-media="claim-new48" type="button">可领+48h</button>
       <button class="filter-chip" data-media="claim-text" type="button">可领纯文</button>
+      <button class="filter-chip" data-media="link-summary" type="button">可领+摘要</button>
       <button class="filter-chip" data-media="text-only" type="button">纯文本</button>
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
       <button class="filter-chip" data-media="unstarred" type="button">未收藏</button>
@@ -200,6 +202,7 @@ const quick48hBtnEl = document.getElementById('quick48hBtn');
 const quickClaimNew24BtnEl = document.getElementById('quickClaimNew24Btn');
 const quickClaimNew48BtnEl = document.getElementById('quickClaimNew48Btn');
 const quickClaimTextBtnEl = document.getElementById('quickClaimTextBtn');
+const quickLinkSummaryBtnEl = document.getElementById('quickLinkSummaryBtn');
 const quickClaimRandomBtnEl = document.getElementById('quickClaimRandomBtn');
 const quickDatedBtnEl = document.getElementById('quickDatedBtn');
 const quickShortSummaryBtnEl = document.getElementById('quickShortSummaryBtn');
@@ -356,6 +359,14 @@ function updateQuickClaimTextBtn(){
   quickClaimTextBtnEl.classList.toggle('active', active);
   quickClaimTextBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickClaimTextBtnEl.textContent = active ? '取消可领纯文' : '可领纯文';
+}
+
+function updateQuickLinkSummaryBtn(){
+  if (!quickLinkSummaryBtnEl) return;
+  const active = currentMediaFilter === 'link-summary';
+  quickLinkSummaryBtnEl.classList.toggle('active', active);
+  quickLinkSummaryBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quickLinkSummaryBtnEl.textContent = active ? '取消可领+摘要' : '可领+摘要';
 }
 
 function updateQuickShortSummaryBtn(){
@@ -568,6 +579,10 @@ function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='claim-text'){
     const hasMedia = !!String(card?.image||'').trim() || !!String(card?.video||'').trim();
     return hasClaimableLink(card) && !hasMedia;
+  }
+  if(mediaFilter==='link-summary'){
+    const summary = String(card?.summary||'').replace(/\s+/g,' ').trim();
+    return hasClaimableLink(card) && summary.length >= 8;
   }
   if(mediaFilter==='text-only'){
     const hasMedia = !!String(card?.image||'').trim() || !!String(card?.video||'').trim();
@@ -986,6 +1001,7 @@ function applyData(data){
   updateQuickDatedBtn();
   updateQuickClaimNew24Btn();
   updateQuickClaimTextBtn();
+  updateQuickLinkSummaryBtn();
   updateQuickShortSummaryBtn();
   updateQuickEmptySummaryBtn();
   updateQuickMediaBtn();
@@ -1349,6 +1365,15 @@ if (quickClaimTextBtnEl) {
     showToast(currentMediaFilter === 'claim-text' ? '已切到可领纯文' : '已恢复全部内容');
   });
 }
+if (quickLinkSummaryBtnEl) {
+  quickLinkSummaryBtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'link-summary' ? 'all' : 'link-summary';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'link-summary' ? '已切到可领+摘要' : '已恢复全部内容');
+  });
+}
 if (quickClaimRandomBtnEl) {
   quickClaimRandomBtnEl.addEventListener('click', pickRandomClaimableCard);
 }
@@ -1587,6 +1612,15 @@ window.addEventListener('keydown', (e) => {
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'claim-new48' ? '已切换到可领+48h内容' : '已切换到全部内容');
+    return;
+  }
+
+  if (e.altKey && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    currentMediaFilter = currentMediaFilter === 'link-summary' ? 'all' : 'link-summary';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'link-summary' ? '已切换到可领+摘要内容' : '已切换到全部内容');
     return;
   }
 
