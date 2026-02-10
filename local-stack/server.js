@@ -441,6 +441,13 @@ function parseBody(req) {
     const MAX_BODY = 5 * 1024 * 1024; // 5MB
     const contentLength = Number(req.headers['content-length'] || 0);
 
+    const contentType = String(req.headers['content-type'] || '').toLowerCase();
+    if (contentType && !contentType.includes('application/json')) {
+      const err = new Error('Unsupported Media Type');
+      err.code = 'UNSUPPORTED_MEDIA_TYPE';
+      return reject(err);
+    }
+
     // 性能优化：已知超限时尽早拒绝，减少无效内存占用
     if (Number.isFinite(contentLength) && contentLength > MAX_BODY) {
       const err = new Error('Payload too large');
@@ -495,6 +502,9 @@ function parseBody(req) {
 function handleParseError(res, err, fallbackMsg = 'Invalid JSON') {
   if (err && err.code === 'PAYLOAD_TOO_LARGE') {
     return send(res, 413, JSON.stringify({ error: 'Payload too large' }));
+  }
+  if (err && err.code === 'UNSUPPORTED_MEDIA_TYPE') {
+    return send(res, 415, JSON.stringify({ error: 'Content-Type must be application/json' }));
   }
   return send(res, 400, JSON.stringify({ error: fallbackMsg }));
 }
@@ -1226,6 +1236,29 @@ function buildExportPayload() {
   };
 }
 
+function getBootstrapMeta() {
+  const data = getBootstrapPayload();
+  const body = getBootstrapBody(data);
+  const cards = data.cards || [];
+  return {
+    counts: {
+      ads: (data.ads || []).length,
+      shortcuts: (data.shortcuts || []).length,
+      tabs: (data.tabs || []).length,
+      cards: cards.length,
+      enabledCards: cards.filter(x => x.enabled !== false).length
+    },
+    bytes: {
+      raw: body.raw ? body.raw.length : 0,
+      gzip: body.gzip ? body.gzip.length : null,
+      br: body.br ? body.br.length : null
+    },
+    etag: getBootstrapEtag(data),
+    updatedAt: getLatestDataUpdatedAt(),
+    generatedAt: new Date().toISOString()
+  };
+}
+
 function resequenceCollection(fileKey, ids = []) {
   const list = readJson(FILES[fileKey], []);
   if (!Array.isArray(list) || !list.length) return { updated: 0, total: 0 };
@@ -1450,6 +1483,11 @@ const backend = http.createServer((req, res) => {
       enabledCards: cards.filter(x => x.enabled !== false).length,
       updatedAt: getLatestDataUpdatedAt()
     }, 'private, max-age=3, stale-while-revalidate=15');
+  }
+
+  if (u.pathname === '/api/admin/bootstrap-meta' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    return sendJsonWithEtag(req, res, getBootstrapMeta(), 'private, max-age=2, stale-while-revalidate=10');
   }
 
   if (u.pathname === '/api/admin/cards/search' && (req.method === 'GET' || req.method === 'HEAD')) {

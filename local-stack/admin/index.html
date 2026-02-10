@@ -60,6 +60,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
       <section id="dashboard" class="view active panel">
         <div class="row" style="margin-bottom:10px">
           <button class="btn" onclick="refreshSummary()">刷新统计</button>
+          <button class="btn" onclick="loadBootstrapMeta()">Bootstrap体积</button>
           <button class="btn" onclick="exportAllData()">导出数据JSON</button>
           <button class="btn ok" onclick="repairTabKeys()">自动修复空分类</button>
           <button class="btn" onclick="validateLinks()">链接体检</button>
@@ -103,6 +104,10 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
             <button class="btn" type="button" onclick="loadRecentCards()">刷新最近变更</button>
           </div>
           <div id="recentCardsBox" class="muted">暂无数据</div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 8px">Bootstrap 负载信息</h4>
+          <div id="bootstrapMetaBox" class="muted">点击“Bootstrap体积”查看</div>
         </div>
         <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
         <div id="duplicateCheckBox" class="muted" style="margin-top:10px"></div>
@@ -297,6 +302,7 @@ async function doLogin(){
       refreshSummary();
       loadCategoryStats();
       loadRecentCards();
+      loadBootstrapMeta();
       restoreActiveView();
       toast('登录成功');
     } catch(e) {
@@ -660,6 +666,29 @@ async function loadRecentCards(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">最近变更加载失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`最近变更加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
+
+async function loadBootstrapMeta(){
+  const box = document.getElementById('bootstrapMetaBox');
+  if (box) box.innerHTML = 'Bootstrap 信息加载中...';
+  try {
+    const r = await req('/api/admin/bootstrap-meta', 'GET');
+    const bytes = r.bytes || {};
+    const counts = r.counts || {};
+    const f = (n)=> Number.isFinite(Number(n)) ? `${Number(n).toLocaleString()} B` : '-';
+    const ratioGzip = (bytes.raw && bytes.gzip) ? `${Math.round((bytes.gzip / bytes.raw) * 100)}%` : '-';
+    const ratioBr = (bytes.raw && bytes.br) ? `${Math.round((bytes.br / bytes.raw) * 100)}%` : '-';
+    if (box) box.innerHTML = `
+      <div>ETag：<code>${esc(r.etag || '-')}</code></div>
+      <div>数据量：ads ${counts.ads||0} / shortcuts ${counts.shortcuts||0} / tabs ${counts.tabs||0} / cards ${counts.cards||0}（启用 ${counts.enabledCards||0}）</div>
+      <div>体积：raw ${f(bytes.raw)} · gzip ${f(bytes.gzip)}（${ratioGzip}）· br ${f(bytes.br)}（${ratioBr}）</div>
+      <div>数据更新时间：${esc(r.updatedAt || '-')}；统计生成：${esc(r.generatedAt || '-')}</div>`;
+    toast('Bootstrap体积信息已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`Bootstrap体积加载失败：${e?.message || '网络异常'}`);
   }
 }
 
