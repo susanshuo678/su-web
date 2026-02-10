@@ -50,6 +50,7 @@
   <div class="search-wrap">
     <div class="search-row">
       <input id="cardSearch" class="search" placeholder="搜索内容（标题/摘要）" aria-label="搜索内容">
+      <button id="randomPickBtn" class="search-clear" type="button" aria-label="随机看看">随机</button>
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
     </div>
     <div class="filter-row" role="group" aria-label="内容筛选">
@@ -118,6 +119,7 @@ const resultMetaEl = document.getElementById('resultMeta');
 const mediaFilterEls = [...document.querySelectorAll('.filter-chip[data-media]')];
 const tabScopeToggleEl = document.getElementById('tabScopeToggle');
 const clearSearchBtnEl = document.getElementById('clearSearchBtn');
+const randomPickBtnEl = document.getElementById('randomPickBtn');
 const syncStateEl = document.getElementById('syncState');
 let currentData = null;
 let currentQuery = '';
@@ -183,6 +185,25 @@ function showToast(text){
   el.style.display = 'block';
   clearTimeout(window.__suToastTimer);
   window.__suToastTimer = setTimeout(() => { el.style.display = 'none'; }, 1700);
+}
+
+function pickRandomVisibleCard(){
+  const active = document.querySelector('.tabpage.active');
+  if (!active) return;
+  const cards = [...active.querySelectorAll('.item[data-card-id]')];
+  if (!cards.length) {
+    showToast('当前栏目暂无可随机内容');
+    return;
+  }
+  const target = cards[Math.floor(Math.random() * cards.length)];
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.style.outline = '2px solid #5a85ff';
+  target.style.outlineOffset = '2px';
+  setTimeout(() => {
+    target.style.outline = 'none';
+    target.style.outlineOffset = '0';
+  }, 1200);
+  showToast(`随机定位：第 ${cards.indexOf(target) + 1} 条`);
 }
 
 async function copyCardLink(link){
@@ -540,10 +561,14 @@ function restoreActiveTab(){
   if (nav) switchTab(saved, nav);
 }
 
+let searchInputTimer = null;
 if (searchInputEl) {
   searchInputEl.addEventListener('input', () => {
-    currentQuery = String(searchInputEl.value || '').trim().toLowerCase();
-    if (currentData) applyData(currentData);
+    if (searchInputTimer) clearTimeout(searchInputTimer);
+    searchInputTimer = setTimeout(() => {
+      currentQuery = String(searchInputEl.value || '').trim().toLowerCase();
+      if (currentData) applyData(currentData);
+    }, 120);
   });
 }
 if (clearSearchBtnEl) {
@@ -554,6 +579,9 @@ if (clearSearchBtnEl) {
     if (currentData) applyData(currentData);
     searchInputEl.focus();
   });
+}
+if (randomPickBtnEl) {
+  randomPickBtnEl.addEventListener('click', pickRandomVisibleCard);
 }
 window.addEventListener('keydown', (e) => {
   if (e.key === '/' && document.activeElement !== searchInputEl) {
@@ -571,6 +599,10 @@ window.addEventListener('keydown', (e) => {
     const tab = map[e.key];
     const btn = [...document.querySelectorAll('.nav-btn')].find(x => (x.getAttribute('onclick')||'').includes(`'${tab}'`));
     if (btn) switchTab(tab, btn);
+  }
+  if (e.altKey && (e.key === 'r' || e.key === 'R')) {
+    e.preventDefault();
+    pickRandomVisibleCard();
   }
 });
 if (mediaFilterEls.length) {

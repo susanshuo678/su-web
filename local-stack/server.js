@@ -870,6 +870,63 @@ function toggleCardsEnabledByCategory(category = '', enabled = true) {
   return { updated, total: list.filter(x => String(x.category || '').trim() === cat).length, category: cat, enabled: nextEnabled };
 }
 
+function getCardCategoryStats() {
+  const tabs = getSortedCollection('tabs');
+  const cards = getSortedCollection('cards');
+  const map = new Map();
+
+  for (const tab of tabs) {
+    const key = String(tab.key || '').trim();
+    if (!key) continue;
+    map.set(key, {
+      key,
+      tabName: String(tab.name || key),
+      total: 0,
+      enabled: 0,
+      withLink: 0,
+      withMedia: 0
+    });
+  }
+
+  for (const card of cards) {
+    const key = String(card.category || '').trim() || 'uncategorized';
+    if (!map.has(key)) {
+      map.set(key, { key, tabName: key === 'all' ? '全栏目' : key, total: 0, enabled: 0, withLink: 0, withMedia: 0 });
+    }
+    const row = map.get(key);
+    row.total++;
+    if (card.enabled !== false) row.enabled++;
+    const link = String(card.link || '').trim();
+    if (link && link !== '#') row.withLink++;
+    if (String(card.image || '').trim() || String(card.video || '').trim()) row.withMedia++;
+  }
+
+  return [...map.values()].sort((a, b) => b.total - a.total || a.key.localeCompare(b.key));
+}
+
+function autoDisableLowQualityCards() {
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const changedIds = [];
+  const next = list.map(item => {
+    const title = String(item.title || '').trim();
+    const summaryText = String(item.summary || '').replace(/\s+/g, '').trim();
+    const hasContent = !!String(item.contentHtml || item.contentMd || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').trim();
+    const link = String(item.link || '').trim();
+    const hasMedia = !!String(item.image || '').trim() || !!String(item.video || '').trim();
+    const shouldDisable = !title || (!summaryText && !hasContent && !hasMedia && (!link || link === '#'));
+    if (!shouldDisable || item.enabled === false) return item;
+    updated++;
+    changedIds.push(String(item.id || ''));
+    return { ...item, enabled: false };
+  });
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, total: list.length, changedIds: changedIds.slice(0, 60) };
+}
+
 function buildExportPayload() {
   return {
     exportedAt: new Date().toISOString(),
@@ -1116,6 +1173,15 @@ const backend = http.createServer((req, res) => {
     return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
   }
 
+  if (u.pathname === '/api/admin/cards/category-stats' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const rows = getCardCategoryStats();
+    return sendJsonWithEtag(req, res, {
+      rows,
+      updatedAt: getLatestDataUpdatedAt()
+    }, 'private, max-age=3, stale-while-revalidate=15');
+  }
+
   if (u.pathname === '/api/admin/validate-links' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (!auth(req,res)) return;
     const invalid = collectInvalidLinks();
@@ -1246,6 +1312,12 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
   if (u.pathname === '/api/admin/cards/summary-normalize' && req.method === 'POST') {
     if (!auth(req,res)) return;
     const result = normalizeCardSummaries();
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
+  }
+
+  if (u.pathname === '/api/admin/cards/auto-disable-empty' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = autoDisableLowQualityCards();
     return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 

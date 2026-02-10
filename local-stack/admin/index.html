@@ -69,8 +69,10 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="normalizeCardSummaries()">摘要一键规范化</button>
           <button class="btn ok" onclick="normalizeAllOrders()">统一重排顺序</button>
           <button class="btn" onclick="checkCardDuplicates()">重复卡片体检</button>
+          <button class="btn" onclick="loadCategoryStats()">分类分布统计</button>
           <button class="btn ok" onclick="disableDuplicateCardsByTitle()">一键停用重复标题</button>
           <button class="btn ok" onclick="disableDuplicateCardsByLink()">一键停用重复链接</button>
+          <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
           <span id="summaryMeta" class="muted"></span>
         </div>
         <div class="stats">
@@ -91,6 +93,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         </div>
         <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
         <div id="duplicateCheckBox" class="muted" style="margin-top:10px"></div>
+        <div id="categoryStatsBox" class="muted" style="margin-top:10px"></div>
       </section>
 
       <section id="adsView" class="view panel"><h3>头部横排广告</h3><div id="ads"></div></section>
@@ -267,6 +270,7 @@ async function doLogin(){
       app.style.display='block';
       loadAll();
       refreshSummary();
+      loadCategoryStats();
       restoreActiveView();
       toast('登录成功');
     } catch(e) {
@@ -579,6 +583,42 @@ async function disableDuplicateCards(mode){
 }
 function disableDuplicateCardsByTitle(){ return disableDuplicateCards('title'); }
 function disableDuplicateCardsByLink(){ return disableDuplicateCards('link'); }
+
+async function loadCategoryStats(){
+  const box = document.getElementById('categoryStatsBox');
+  if (box) box.innerHTML = '分类分布统计加载中...';
+  try {
+    const r = await req('/api/admin/cards/category-stats', 'GET');
+    const rows = Array.isArray(r.rows) ? r.rows : [];
+    if (!rows.length) {
+      if (box) box.innerHTML = '暂无分类数据';
+      return;
+    }
+    const list = rows.map(x => `<li><code>${esc(x.key||'-')}</code>（${esc(x.tabName||'-')}）: 总数 ${x.total||0} / 启用 ${x.enabled||0} / 可领取 ${x.withLink||0} / 含媒体 ${x.withMedia||0}</li>`).join('');
+    if (box) box.innerHTML = `<div>分类统计（更新时间：${esc(r.updatedAt || '-')})</div><ul>${list}</ul>`;
+    toast('分类分布统计已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">分类统计失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`分类统计失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function autoDisableEmptyCards(){
+  if(!confirm('确认自动停用“空标题或空内容”卡片？仅停用，不删除。')) return;
+  try {
+    const r = await req('/api/admin/cards/auto-disable-empty', 'POST', {});
+    toast(`自动停用完成：更新 ${r.updated||0}/${r.total||0}`);
+    const box = document.getElementById('categoryStatsBox');
+    if (box && Array.isArray(r.changedIds) && r.changedIds.length) {
+      box.innerHTML = `<div>本次已停用 ${r.updated||0} 张，示例ID：</div><code>${esc(r.changedIds.join(', '))}</code>`;
+    }
+    loadAll();
+    refreshSummary();
+    loadCategoryStats();
+  } catch (e) {
+    toast(`自动停用失败：${e?.message || '网络异常'}`);
+  }
+}
 
 async function refreshSummary(){
   try{
