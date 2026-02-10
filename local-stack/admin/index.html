@@ -72,6 +72,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="checkCardDuplicates()">重复卡片体检</button>
           <button class="btn" onclick="loadCategoryStats()">分类分布统计</button>
           <button class="btn" onclick="loadQualityOverview()">内容质量概览</button>
+          <button class="btn" onclick="loadActionabilitySummary()">可领率看板</button>
           <button class="btn ok" onclick="disableDuplicateCardsByTitle()">一键停用重复标题</button>
           <button class="btn ok" onclick="disableDuplicateCardsByLink()">一键停用重复链接</button>
           <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
@@ -115,6 +116,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div id="categoryStatsBox" class="muted" style="margin-top:10px"></div>
         <div id="staleCardsBox" class="muted" style="margin-top:10px"></div>
         <div id="qualityOverviewBox" class="muted" style="margin-top:10px"></div>
+        <div id="actionabilityBox" class="muted" style="margin-top:10px"></div>
       </section>
 
       <section id="adsView" class="view panel"><h3>头部横排广告</h3><div id="ads"></div></section>
@@ -306,6 +308,7 @@ async function doLogin(){
       loadRecentCards();
       loadBootstrapMeta();
       loadQualityOverview();
+      loadActionabilitySummary();
       restoreActiveView();
       toast('登录成功');
     } catch(e) {
@@ -673,6 +676,27 @@ async function loadRecentCards(){
 }
 
 
+
+
+
+async function loadActionabilitySummary(){
+  const box = document.getElementById('actionabilityBox');
+  if (box) box.innerHTML = '可领率看板加载中...';
+  try {
+    const r = await req('/api/admin/cards/actionability-summary', 'GET');
+    const rows = Array.isArray(r.rows) ? r.rows : [];
+    if (!rows.length) {
+      if (box) box.innerHTML = '暂无启用卡片数据';
+      return;
+    }
+    const top = rows.slice(0, 8).map(x=>`<li><code>${esc(x.category||'-')}</code>：可领率 ${x.claimableRate||0}%（${x.claimable||0}/${x.total||0}） · 14天陈旧 ${x.staleRate||0}% · 空摘要 ${x.noSummary||0}</li>`).join('');
+    if (box) box.innerHTML = `<div>启用卡片 ${r.totals?.enabledCards||0}，可领取 ${r.totals?.claimable||0}（按可领率排序，展示前 8 项）</div><ul>${top}</ul><div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('可领率看板已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">可领率看板加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`可领率看板加载失败：${e?.message || '网络异常'}`);
+  }
+}
 
 async function loadQualityOverview(){
   const box = document.getElementById('qualityOverviewBox');

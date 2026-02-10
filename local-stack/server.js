@@ -1075,6 +1075,44 @@ function getRecentCards(limit = 10) {
 }
 
 
+
+function getCardActionabilitySummary() {
+  const cards = getSortedCollection('cards').filter(x => x.enabled !== false);
+  const nowMs = Date.now();
+  const rowsMap = new Map();
+
+  for (const card of cards) {
+    const key = String(card.category || 'uncategorized').trim() || 'uncategorized';
+    if (!rowsMap.has(key)) {
+      rowsMap.set(key, { category: key, total: 0, claimable: 0, stale14d: 0, noSummary: 0, withMedia: 0 });
+    }
+    const row = rowsMap.get(key);
+    row.total++;
+    const link = String(card.link || '').trim();
+    if (link && link !== '#') row.claimable++;
+    const summary = String(card.summary || '').trim();
+    if (!summary) row.noSummary++;
+    if (String(card.image || '').trim() || String(card.video || '').trim()) row.withMedia++;
+    const ts = Date.parse(String(card.updatedAt || card.createdAt || ''));
+    if (!Number.isFinite(ts) || (nowMs - ts) > 14 * 24 * 60 * 60 * 1000) row.stale14d++;
+  }
+
+  const rows = [...rowsMap.values()].map((x) => ({
+    ...x,
+    claimableRate: x.total ? Math.round((x.claimable / x.total) * 100) : 0,
+    staleRate: x.total ? Math.round((x.stale14d / x.total) * 100) : 0
+  })).sort((a, b) => b.claimableRate - a.claimableRate || b.total - a.total || a.category.localeCompare(b.category));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    totals: {
+      enabledCards: cards.length,
+      claimable: cards.filter(x => String(x.link || '').trim() && String(x.link || '').trim() !== '#').length
+    },
+    rows
+  };
+}
+
 function getCardsQualityOverview() {
   const ver = getFileVersionKey(FILES.cards);
   if (qualityOverviewCache.data && qualityOverviewCache.ver === ver) return qualityOverviewCache.data;
@@ -1557,6 +1595,12 @@ const backend = http.createServer((req, res) => {
     const limit = Math.min(50, Math.max(1, Number(u.searchParams.get('limit') || 8)));
     const data = getRecentCards(limit);
     return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+
+  if (u.pathname === '/api/admin/cards/actionability-summary' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    return sendJsonWithEtag(req, res, getCardActionabilitySummary(), 'private, max-age=3, stale-while-revalidate=20');
   }
 
   if (u.pathname === '/api/admin/cards/quality-overview' && (req.method === 'GET' || req.method === 'HEAD')) {
