@@ -60,6 +60,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
       <section id="dashboard" class="view active panel">
         <div class="row" style="margin-bottom:10px">
           <button class="btn" onclick="refreshSummary()">刷新统计</button>
+          <button class="btn" onclick="loadQuickInsights()">快速洞察</button>
           <button class="btn" onclick="loadBootstrapMeta()">Bootstrap体积</button>
           <button class="btn" onclick="loadRuntimeMetrics()">运行态指标</button>
           <button class="btn" onclick="pruneRuntimeCaches()">缓存瘦身</button>
@@ -122,6 +123,10 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div class="panel" style="margin-top:10px">
           <h4 style="margin:0 0 8px">运行态指标（缓存/会话/内存）</h4>
           <div id="runtimeMetricsBox" class="muted">点击“运行态指标”查看</div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 8px">卡片快速洞察（启用卡片）</h4>
+          <div id="quickInsightsBox" class="muted">点击“快速洞察”查看</div>
         </div>
         <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
         <div id="duplicateCheckBox" class="muted" style="margin-top:10px"></div>
@@ -354,6 +359,7 @@ async function doLogin(){
       loadRecentCards();
       loadBootstrapMeta();
       loadRuntimeMetrics();
+      loadQuickInsights();
       loadQualityOverview();
       loadActionabilitySummary();
       loadPublishReadiness();
@@ -871,6 +877,23 @@ async function loadQualityOverview(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">内容质量概览加载失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`内容质量概览加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function loadQuickInsights(){
+  const box = document.getElementById('quickInsightsBox');
+  if (box) box.innerHTML = '快速洞察加载中...';
+  try {
+    const r = await req('/api/admin/cards/quick-insights', 'GET');
+    const t = r.totals || {};
+    if (box) box.innerHTML = `
+      <div>启用 ${t.enabled||0}/${t.cards||0} · 可领 ${t.claimable||0}（${t.claimableRate||0}%）</div>
+      <div>24h 更新 ${t.updated24h||0} · 今日更新 ${t.updatedToday||0} · 14天未更新 ${t.stale14d||0}</div>
+      <div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('快速洞察已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">快速洞察加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`快速洞察加载失败：${e?.message || '网络异常'}`);
   }
 }
 

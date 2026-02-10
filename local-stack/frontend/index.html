@@ -60,6 +60,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="quickRecentBtn" class="search-clear" type="button" aria-label="只看近3天更新">近3天</button>
       <button id="quick14Btn" class="search-clear" type="button" aria-label="只看14天内更新">14天</button>
       <button id="quickNew24Btn" class="search-clear" type="button" aria-label="只看24小时内更新">24h NEW</button>
+      <button id="quickClaimNew24Btn" class="search-clear" type="button" aria-label="只看可领取且24小时内更新">可领+24h</button>
       <button id="quickClaimRandomBtn" class="search-clear" type="button" aria-label="随机一个可领取">随机可领</button>
       <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
@@ -68,7 +69,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
-    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+W 切 24h NEW。</div>
+    <div class="filter-collapse-tip" style="display:block;color:#6a7898">快捷键：/ 聚焦搜索，Shift+R 刷新，Alt+1/2/3 切换栏目，Alt+F 切 14天更新，Alt+W 切 24h NEW，Alt+N 切 可领+24h。</div>
     <div class="filter-row" role="group" aria-label="内容筛选">
       <button class="filter-chip active" data-media="all" type="button">全部</button>
       <button class="filter-chip" data-media="image" type="button">含图片</button>
@@ -82,6 +83,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="today" type="button">今日更新</button>
       <button class="filter-chip" data-media="today-link" type="button">今日可领</button>
       <button class="filter-chip" data-media="new-24h" type="button">24h NEW</button>
+      <button class="filter-chip" data-media="claim-new24" type="button">可领+24h</button>
       <button class="filter-chip" data-media="text-only" type="button">纯文本</button>
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
       <button class="filter-chip" data-media="unstarred" type="button">未收藏</button>
@@ -164,6 +166,7 @@ const quickTodayBtnEl = document.getElementById('quickTodayBtn');
 const quickRecentBtnEl = document.getElementById('quickRecentBtn');
 const quick14BtnEl = document.getElementById('quick14Btn');
 const quickNew24BtnEl = document.getElementById('quickNew24Btn');
+const quickClaimNew24BtnEl = document.getElementById('quickClaimNew24Btn');
 const quickClaimRandomBtnEl = document.getElementById('quickClaimRandomBtn');
 const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
 const filterCollapseTipEl = document.getElementById('filterCollapseTip');
@@ -249,6 +252,14 @@ function updateQuickNew24Btn(){
   quickNew24BtnEl.classList.toggle('active', active);
   quickNew24BtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickNew24BtnEl.textContent = active ? '取消24h' : '24h NEW';
+}
+
+function updateQuickClaimNew24Btn(){
+  if (!quickClaimNew24BtnEl) return;
+  const active = currentMediaFilter === 'claim-new24';
+  quickClaimNew24BtnEl.classList.toggle('active', active);
+  quickClaimNew24BtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quickClaimNew24BtnEl.textContent = active ? '取消可领+24h' : '可领+24h';
 }
 
 function updateFilterBarUi(){
@@ -385,6 +396,7 @@ function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
   if(mediaFilter==='today-link') return isSameLocalDay(card?.updatedAt || card?.createdAt) && hasClaimableLink(card);
   if(mediaFilter==='new-24h') return isRecentlyUpdated(card, 1);
+  if(mediaFilter==='claim-new24') return hasClaimableLink(card) && isRecentlyUpdated(card, 1);
   if(mediaFilter==='text-only'){
     const hasMedia = !!String(card?.image||'').trim() || !!String(card?.video||'').trim();
     const hasText = !!String(card?.summary||'').trim() || !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
@@ -791,6 +803,7 @@ function applyData(data){
   updateQuickRecentBtn();
   updateQuick14Btn();
   updateQuickNew24Btn();
+  updateQuickClaimNew24Btn();
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = (!focusModeEnabled && adsHtml) ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
   const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p><div class="card-actions"><button class="btn-lite" type="button" onclick="resetFilters()">重置筛选</button></div></section>' : '';
@@ -807,7 +820,8 @@ function applyData(data){
     const claimableCount = enabledCards.filter(hasClaimableLink).length;
     const new24hCount = enabledCards.filter(c => isRecentlyUpdated(c, 1)).length;
     const starredCount = enabledCards.filter(isCardStarred).length;
-    quickStatsBarEl.textContent = `总数 ${enabledCards.length} · 可领 ${claimableCount} · 24h NEW ${new24hCount} · 收藏 ${starredCount}`;
+    const stale14Count = enabledCards.filter(c => !isRecentlyUpdated(c, 14)).length;
+    quickStatsBarEl.textContent = `总数 ${enabledCards.length} · 可领 ${claimableCount} · 24h NEW ${new24hCount} · 14天未更 ${stale14Count} · 收藏 ${starredCount}`;
   }
   updateSyncTime();
 }
@@ -921,7 +935,7 @@ function restoreSearchState(){
   const hideVisited = params.get('hideVisited') ?? (safeGetLocalStorage('suweb_hide_visited') || '0');
   const claimUnseen = params.get('claimUnseen') ?? (safeGetLocalStorage('suweb_claim_unseen') || '0');
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link','media-link','fresh-link','fresh-3','fresh-14','content','today','today-link','new-24h','text-only','starred','unstarred','star-link'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','media-link','fresh-link','fresh-3','fresh-14','content','today','today-link','new-24h','claim-new24','text-only','starred','unstarred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
   filterBarCollapsed = filterCollapsed === '1';
@@ -1072,6 +1086,15 @@ if (quickNew24BtnEl) {
     if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'new-24h' ? '已切到24h NEW' : '已恢复全部内容');
+  });
+}
+if (quickClaimNew24BtnEl) {
+  quickClaimNew24BtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'claim-new24' ? 'all' : 'claim-new24';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'claim-new24' ? '已切到可领+24h' : '已恢复全部内容');
   });
 }
 if (quickClaimRandomBtnEl) {
@@ -1249,10 +1272,10 @@ window.addEventListener('keydown', (e) => {
 
   if (e.altKey && (e.key === 'n' || e.key === 'N')) {
     e.preventDefault();
-    currentMediaFilter = currentMediaFilter === 'new-24h' ? 'all' : 'new-24h';
+    currentMediaFilter = currentMediaFilter === 'claim-new24' ? 'all' : 'claim-new24';
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
     if (currentData) applyData(currentData);
-    showToast(currentMediaFilter === 'new-24h' ? '已切换到24h NEW内容' : '已切换到全部内容');
+    showToast(currentMediaFilter === 'claim-new24' ? '已切换到可领+24h内容' : '已切换到全部内容');
     return;
   }
 
