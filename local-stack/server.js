@@ -150,19 +150,8 @@ function sendJsonWithEtag(req, res, data, cacheControl = 'private, max-age=0, mu
     return res.end();
   }
 
-  const raw = cached ? cached.raw : Buffer.from(JSON.stringify(data), 'utf8');
-  const ae = String(req.headers['accept-encoding'] || '');
-  const encoded = cached
-    ? ((cached.br && /\bbr\b/i.test(ae))
-      ? { body: cached.br, encoding: 'br' }
-      : ((cached.gzip && /\bgzip\b/i.test(ae))
-        ? { body: cached.gzip, encoding: 'gzip' }
-        : { body: raw, encoding: null }))
-    : maybeEncodeJson(req, raw);
-
-  const headers = {
+  const baseHeaders = {
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': encoded.body.length,
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,HEAD,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
@@ -174,9 +163,26 @@ function sendJsonWithEtag(req, res, data, cacheControl = 'private, max-age=0, mu
     'ETag': etag,
     'Vary': 'If-None-Match, Accept-Encoding'
   };
+
+  // 性能优化：HEAD 请求仅返回头部，不做编码选择与压缩体积计算
+  if (req.method === 'HEAD') {
+    res.writeHead(200, baseHeaders);
+    return res.end();
+  }
+
+  const raw = cached ? cached.raw : Buffer.from(JSON.stringify(data), 'utf8');
+  const ae = String(req.headers['accept-encoding'] || '');
+  const encoded = cached
+    ? ((cached.br && /\bbr\b/i.test(ae))
+      ? { body: cached.br, encoding: 'br' }
+      : ((cached.gzip && /\bgzip\b/i.test(ae))
+        ? { body: cached.gzip, encoding: 'gzip' }
+        : { body: raw, encoding: null }))
+    : maybeEncodeJson(req, raw);
+
+  const headers = { ...baseHeaders, 'Content-Length': encoded.body.length };
   if (encoded.encoding) headers['Content-Encoding'] = encoded.encoding;
   res.writeHead(200, headers);
-  if (req.method === 'HEAD') return res.end();
   res.end(encoded.body);
 }
 
@@ -1650,6 +1656,29 @@ const backend = http.createServer((req, res) => {
       uptimeSec: Math.floor(process.uptime()),
       memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024)
     }, 'private, max-age=3, stale-while-revalidate=15');
+  }
+
+  if (u.pathname === '/api/admin/runtime-metrics' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const mem = process.memoryUsage();
+    return sendJsonWithEtag(req, res, {
+      uptimeSec: Math.floor(process.uptime()),
+      tokens: tokens.size,
+      loginAttemptsBuckets: loginAttempts.size,
+      uploadAttemptsBuckets: uploadAttempts.size,
+      memoryRssMb: Math.round(mem.rss / 1024 / 1024),
+      memoryHeapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
+      memoryHeapTotalMb: Math.round(mem.heapTotal / 1024 / 1024),
+      caches: {
+        jsonRead: jsonReadCache.size,
+        sortedCollection: sortedCollectionCache.size,
+        cardSearch: cardSearchCache.size,
+        recentCards: recentCardsCache.size,
+        staticGzip: staticGzipCache.size,
+        staticBr: staticBrCache.size
+      },
+      generatedAt: new Date().toISOString()
+    }, 'private, max-age=2, stale-while-revalidate=10');
   }
 
   if (u.pathname === '/api/admin/cards/duplicates' && (req.method === 'GET' || req.method === 'HEAD')) {

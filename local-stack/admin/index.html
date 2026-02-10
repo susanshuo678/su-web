@@ -61,6 +61,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div class="row" style="margin-bottom:10px">
           <button class="btn" onclick="refreshSummary()">刷新统计</button>
           <button class="btn" onclick="loadBootstrapMeta()">Bootstrap体积</button>
+          <button class="btn" onclick="loadRuntimeMetrics()">运行态指标</button>
           <button class="btn" onclick="exportAllData()">导出数据JSON</button>
           <button class="btn ok" onclick="repairTabKeys()">自动修复空分类</button>
           <button class="btn" onclick="validateLinks()">链接体检</button>
@@ -110,6 +111,10 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div class="panel" style="margin-top:10px">
           <h4 style="margin:0 0 8px">Bootstrap 负载信息</h4>
           <div id="bootstrapMetaBox" class="muted">点击“Bootstrap体积”查看</div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 8px">运行态指标（缓存/会话/内存）</h4>
+          <div id="runtimeMetricsBox" class="muted">点击“运行态指标”查看</div>
         </div>
         <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
         <div id="duplicateCheckBox" class="muted" style="margin-top:10px"></div>
@@ -307,6 +312,7 @@ async function doLogin(){
       loadCategoryStats();
       loadRecentCards();
       loadBootstrapMeta();
+      loadRuntimeMetrics();
       loadQualityOverview();
       loadActionabilitySummary();
       restoreActiveView();
@@ -740,6 +746,24 @@ async function loadBootstrapMeta(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">加载失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`Bootstrap体积加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function loadRuntimeMetrics(){
+  const box = document.getElementById('runtimeMetricsBox');
+  if (box) box.innerHTML = '运行态指标加载中...';
+  try {
+    const r = await req('/api/admin/runtime-metrics', 'GET');
+    const c = r.caches || {};
+    if (box) box.innerHTML = `
+      <div>进程：RSS ${esc(String(r.memoryRssMb||0))} MB · Heap ${esc(String(r.memoryHeapUsedMb||0))}/${esc(String(r.memoryHeapTotalMb||0))} MB · Uptime ${esc(String(r.uptimeSec||0))} 秒</div>
+      <div>会话：tokens ${esc(String(r.tokens||0))} · 登录限流桶 ${esc(String(r.loginAttemptsBuckets||0))} · 上传限流桶 ${esc(String(r.uploadAttemptsBuckets||0))}</div>
+      <div>缓存：json ${esc(String(c.jsonRead||0))} / sorted ${esc(String(c.sortedCollection||0))} / cardSearch ${esc(String(c.cardSearch||0))} / recentCards ${esc(String(c.recentCards||0))} / staticGzip ${esc(String(c.staticGzip||0))} / staticBr ${esc(String(c.staticBr||0))}</div>
+      <div class='muted'>采样时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('运行态指标已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`运行态指标加载失败：${e?.message || '网络异常'}`);
   }
 }
 

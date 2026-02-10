@@ -20,7 +20,7 @@
 .btn{margin-top:10px;display:inline-block;padding:8px 12px;background:var(--pri);color:#fff;border-radius:10px;text-decoration:none;font-size:13px}
 .card-actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}.btn-lite{display:inline-block;padding:8px 12px;background:#eef3ff;color:#2a4eab;border-radius:10px;text-decoration:none;font-size:13px;border:1px solid #d6e1ff;cursor:pointer}
 .bottom{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;z-index:60}.bottom .inner{max-width:520px;width:100%;display:flex}
-.nav-btn{flex:1;padding:11px 6px;background:none;border:0;color:#51607e;font-size:20px;display:flex;flex-direction:column;align-items:center;gap:4px}.nav-btn span{font-size:15px}.nav-btn.active{color:var(--pri);font-weight:700}
+.nav-btn{flex:1;padding:11px 6px;background:none;border:0;color:#51607e;font-size:20px;display:flex;flex-direction:column;align-items:center;gap:4px}.nav-btn span{font-size:15px}.tab-count{font-size:11px;color:#7182a6;background:#eef3ff;border-radius:999px;padding:1px 6px;line-height:1.4}.nav-btn.active .tab-count{background:#dbe7ff;color:#2750b5}.nav-btn.active{color:var(--pri);font-weight:700}
 .empty{color:var(--muted);font-size:13px;padding:6px 0}
 .notice{background:#fff6e8;color:#9a6500;border:1px solid #f4d7a5;padding:8px 10px;border-radius:10px;font-size:12px;margin-bottom:10px}
 .refresh{position:fixed;right:14px;bottom:94px;background:#1f4fd6;color:#fff;border:0;border-radius:999px;padding:10px 12px;font-size:12px;box-shadow:var(--shadow)}
@@ -52,6 +52,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
     <div class="search-row">
       <input id="cardSearch" class="search" placeholder="搜索内容（标题/摘要）" aria-label="搜索内容">
       <button id="randomPickBtn" class="search-clear" type="button" aria-label="随机看看">随机</button>
+      <button id="quickClaimBtn" class="search-clear" type="button" aria-label="只看可领取">只看可领</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
@@ -141,6 +142,7 @@ const recentSortToggleEl = document.getElementById('recentSortToggle');
 const clearSearchBtnEl = document.getElementById('clearSearchBtn');
 const resetFilterBtnEl = document.getElementById('resetFilterBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
+const quickClaimBtnEl = document.getElementById('quickClaimBtn');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
 const clearStarBtnEl = document.getElementById('clearStarBtn');
 const starLinkFilterChipEl = document.getElementById('starLinkFilterChip');
@@ -178,6 +180,19 @@ function updateStarChipLabel(){
   if (!chip) return;
   const count = getStarSet().size;
   chip.textContent = count > 0 ? `已收藏(${count})` : '已收藏';
+}
+
+function updateQuickClaimBtn(){
+  if (!quickClaimBtnEl) return;
+  const active = currentMediaFilter === 'link';
+  quickClaimBtnEl.classList.toggle('active', active);
+  quickClaimBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quickClaimBtnEl.textContent = active ? '取消只看' : '只看可领';
+}
+
+function formatTabLabel(name, count){
+  const safeName = esc(name || '栏目');
+  return `${safeName}<span class="tab-count">${Number(count) || 0}</span>`;
 }
 
 function getStarSet(){
@@ -593,7 +608,10 @@ function applyData(data){
   }
   lastRenderStateKey = renderStateKey;
 
-  const tabs=currentData.tabs||[]; tabHelpEl.textContent=tabs[0]?.name||'助力'; tabHangEl.textContent=tabs[1]?.name||'代挂'; tabBotsEl.textContent=tabs[2]?.name||'机器人列表';
+  const tabs=currentData.tabs||[];
+  const baseHelpName=tabs[0]?.name||'助力';
+  const baseHangName=tabs[1]?.name||'代挂';
+  const baseBotsName=tabs[2]?.name||'机器人列表';
   const cards=(currentData.cards||[])
     .filter(c=>matchesQuery(c, currentQuery)
       && matchesMediaFilter(c, currentMediaFilter)
@@ -626,6 +644,10 @@ function applyData(data){
   const list1=cards.filter(c=>inTab(c,tabKeys[0]));
   const list2=cards.filter(c=>inTab(c,tabKeys[1]));
   const list3=cards.filter(c=>inTab(c,tabKeys[2]));
+  tabHelpEl.innerHTML = formatTabLabel(baseHelpName, list1.length);
+  tabHangEl.innerHTML = formatTabLabel(baseHangName, list2.length);
+  tabBotsEl.innerHTML = formatTabLabel(baseBotsName, list3.length);
+  updateQuickClaimBtn();
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = (!focusModeEnabled && adsHtml) ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
   const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p><div class="card-actions"><button class="btn-lite" type="button" onclick="resetFilters()">重置筛选</button></div></section>' : '';
@@ -775,6 +797,7 @@ function restoreSearchState(){
   if (starLinkFilterChipEl) {
     starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
   }
+  updateQuickClaimBtn();
 }
 
 function getAutoRefreshIntervalMs(){
@@ -817,6 +840,15 @@ if (resetFilterBtnEl) {
 }
 if (randomPickBtnEl) {
   randomPickBtnEl.addEventListener('click', pickRandomVisibleCard);
+}
+if (quickClaimBtnEl) {
+  quickClaimBtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'link' ? 'all' : 'link';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'link' ? '已切到只看可领取' : '已恢复全部内容');
+  });
 }
 if (copyTabDigestBtnEl) {
   copyTabDigestBtnEl.addEventListener('click', copyActiveTabDigest);
