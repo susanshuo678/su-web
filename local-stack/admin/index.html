@@ -75,6 +75,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
           <button class="btn ok" onclick="fillMissingUpdatedAt()">补齐更新时间</button>
           <button class="btn ok" onclick="fillMissingButtonText()">补齐按钮文案</button>
+          <button class="btn ok" onclick="standardizeButtonText()">按钮文案全量标准化</button>
           <button class="btn" onclick="auditStaleCards()">陈旧内容体检</button>
           <button class="btn danger" onclick="disableStaleCards()">一键停用陈旧内容</button>
           <span id="summaryMeta" class="muted"></span>
@@ -679,6 +680,18 @@ async function fillMissingButtonText(){
     loadAll();
   } catch (e) {
     toast(`补齐按钮文案失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function standardizeButtonText(){
+  if(!confirm('确认全量标准化按钮文案？有领取链接统一“去领取”，无链接统一“查看详情”。')) return;
+  try {
+    const r = await req('/api/admin/cards/button-text-standardize', 'POST', {});
+    toast(`按钮文案标准化完成：更新 ${r.updated||0}/${r.total||0}`);
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`按钮文案标准化失败：${e?.message || '网络异常'}`);
   }
 }
 

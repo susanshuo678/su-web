@@ -1011,6 +1011,25 @@ function fillMissingButtonText() {
   return { updated, total: list.length };
 }
 
+function standardizeButtonText() {
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const nowIso = new Date().toISOString();
+  const next = list.map(item => {
+    const link = String(item.link || '').trim();
+    const expected = (!link || link === '#') ? '查看详情' : '去领取';
+    const current = String(item.buttonText || '').trim();
+    if (current === expected) return item;
+    updated++;
+    return { ...item, buttonText: expected, updatedAt: nowIso };
+  });
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, total: list.length };
+}
+
 function getStaleCards(days = 14, limit = 20) {
   const safeDays = Math.min(365, Math.max(1, Number(days) || 14));
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
@@ -1531,6 +1550,12 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
   if (u.pathname === '/api/admin/cards/fill-button-text' && req.method === 'POST') {
     if (!auth(req,res)) return;
     const result = fillMissingButtonText();
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
+  }
+
+  if (u.pathname === '/api/admin/cards/button-text-standardize' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = standardizeButtonText();
     return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 

@@ -59,6 +59,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="image" type="button">含图片</button>
       <button class="filter-chip" data-media="video" type="button">含视频</button>
       <button class="filter-chip" data-media="link" type="button">可领取</button>
+      <button class="filter-chip" data-media="fresh-link" type="button">7天可领</button>
       <button class="filter-chip" data-media="content" type="button">含正文</button>
       <button class="filter-chip" data-media="today" type="button">今日更新</button>
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
@@ -216,10 +217,17 @@ function hasClaimableLink(card){
   return !!link && link !== '#';
 }
 
+function isRecentlyUpdated(card, days = 7){
+  const ts = Date.parse(String(card?.updatedAt || card?.createdAt || ''));
+  if (!Number.isFinite(ts)) return false;
+  return (Date.now() - ts) <= days * 24 * 60 * 60 * 1000;
+}
+
 function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='image') return !!String(card?.image||'').trim();
   if(mediaFilter==='video') return !!String(card?.video||'').trim();
   if(mediaFilter==='link') return hasClaimableLink(card);
+  if(mediaFilter==='fresh-link') return hasClaimableLink(card) && isRecentlyUpdated(card, 7);
   if(mediaFilter==='content') return !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
   if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
   if(mediaFilter==='starred') return isCardStarred(card);
@@ -441,7 +449,7 @@ async function fetchBootstrapWithRetry(force=false, signal){
   throw lastError || new Error('bootstrap failed');
 }
 
-let lastRenderKey = '';
+let lastRenderStateKey = '';
 
 function renderFingerprint(data){
   const pick=(arr,fields)=> (arr||[]).map(item=>fields.map(k=>String(item?.[k]??'')).join('¦')).join('§');
@@ -478,12 +486,20 @@ function updateSyncState(text, isError = false){
 
 function applyData(data){
   currentData = data || {};
-  const renderKey = renderFingerprint(currentData);
-  if (renderKey === lastRenderKey) {
+  const renderStateKey = [
+    renderFingerprint(currentData),
+    currentQuery,
+    currentMediaFilter,
+    strictTabScope ? '1' : '0',
+    recentSortEnabled ? '1' : '0',
+    focusModeEnabled ? '1' : '0',
+    denseModeEnabled ? '1' : '0'
+  ].join('::');
+  if (renderStateKey === lastRenderStateKey) {
     updateSyncTime();
     return;
   }
-  lastRenderKey = renderKey;
+  lastRenderStateKey = renderStateKey;
 
   const tabs=currentData.tabs||[]; tabHelpEl.textContent=tabs[0]?.name||'助力'; tabHangEl.textContent=tabs[1]?.name||'代挂'; tabBotsEl.textContent=tabs[2]?.name||'机器人列表';
   const cards=(currentData.cards||[])
@@ -622,7 +638,7 @@ function restoreSearchState(){
   const focusMode = safeGetLocalStorage('suweb_focus_mode') || '0';
   const denseMode = params.get('dense') ?? (safeGetLocalStorage('suweb_dense_mode') || '0');
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link','content','today','starred','star-link'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','fresh-link','content','today','starred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
   focusModeEnabled = focusMode === '1';
