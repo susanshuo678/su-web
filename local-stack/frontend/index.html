@@ -59,7 +59,8 @@
       <button class="filter-chip" data-media="video" type="button">含视频</button>
       <button class="filter-chip" data-media="link" type="button">可领取</button>
       <button class="filter-chip" data-media="content" type="button">含正文</button>
-      <button class="filter-chip" data-media="starred" type="button">已收藏</button>
+      <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
+      <button id="clearStarBtn" class="filter-chip" type="button" aria-label="清空收藏">清空收藏</button>
       <button id="tabScopeToggle" class="filter-chip" type="button" aria-pressed="false">仅看当前栏目</button>
       <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
     </div>
@@ -120,6 +121,7 @@ const mediaFilterEls = [...document.querySelectorAll('.filter-chip[data-media]')
 const tabScopeToggleEl = document.getElementById('tabScopeToggle');
 const clearSearchBtnEl = document.getElementById('clearSearchBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
+const clearStarBtnEl = document.getElementById('clearStarBtn');
 const syncStateEl = document.getElementById('syncState');
 let currentData = null;
 let currentQuery = '';
@@ -130,23 +132,42 @@ const SANITIZE_CACHE_LIMIT = 120;
 const sanitizeCache = new Map();
 let refreshFailCount = 0;
 const REFRESH_FAIL_CAP = 4;
+let starSetCache = null;
 function matchesQuery(card, query){
   if(!query) return true;
   const text = `${card?.title||''} ${card?.summary||''}`.toLowerCase();
   return text.includes(query);
 }
+function updateStarChipLabel(){
+  const chip = document.getElementById('starredFilterChip');
+  if (!chip) return;
+  const count = getStarSet().size;
+  chip.textContent = count > 0 ? `已收藏(${count})` : '已收藏';
+}
+
 function getStarSet(){
+  if (starSetCache) return starSetCache;
   try {
     const raw = localStorage.getItem(STAR_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.map(x => String(x || '')) : []);
+    starSetCache = new Set(Array.isArray(parsed) ? parsed.map(x => String(x || '')) : []);
+    return starSetCache;
   } catch {
-    return new Set();
+    starSetCache = new Set();
+    return starSetCache;
   }
 }
 
 function saveStarSet(set){
+  starSetCache = new Set(set);
   try { localStorage.setItem(STAR_KEY, JSON.stringify([...set])); } catch {}
+  updateStarChipLabel();
+}
+
+function clearStarSet(){
+  starSetCache = new Set();
+  try { localStorage.removeItem(STAR_KEY); } catch {}
+  updateStarChipLabel();
 }
 
 function isCardStarred(card){
@@ -583,6 +604,17 @@ if (clearSearchBtnEl) {
 if (randomPickBtnEl) {
   randomPickBtnEl.addEventListener('click', pickRandomVisibleCard);
 }
+if (clearStarBtnEl) {
+  clearStarBtnEl.addEventListener('click', () => {
+    const size = getStarSet().size;
+    if (!size) return showToast('当前没有收藏');
+    clearStarSet();
+    if (currentMediaFilter === 'starred') currentMediaFilter = 'all';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(`已清空 ${size} 条收藏`);
+  });
+}
 window.addEventListener('keydown', (e) => {
   if (e.key === '/' && document.activeElement !== searchInputEl) {
     e.preventDefault();
@@ -592,6 +624,14 @@ window.addEventListener('keydown', (e) => {
     searchInputEl.value = '';
     currentQuery = '';
     if (currentData) applyData(currentData);
+  }
+  if (e.altKey && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault();
+    currentMediaFilter = currentMediaFilter === 'starred' ? 'all' : 'starred';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'starred' ? '已切换到收藏筛选' : '已切换到全部内容');
+    return;
   }
   if (document.activeElement === searchInputEl) return;
   if (['1','2','3'].includes(e.key)) {
@@ -630,8 +670,16 @@ if (toTopBtnEl) {
 }
 restoreSearchState();
 restoreActiveTab();
+updateStarChipLabel();
 updateNetworkUi();
 init();
+
+window.addEventListener('storage', (e) => {
+  if (e.key !== STAR_KEY) return;
+  starSetCache = null;
+  updateStarChipLabel();
+  if (currentData) applyData(currentData);
+});
 
 let lastAutoRefreshAt = Date.now();
 let lastManualRefreshAt = 0;

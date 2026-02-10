@@ -1303,6 +1303,32 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
     }).catch((err)=>handleParseError(res, err));
   }
 
+  if (u.pathname === '/api/admin/cards/batch-category' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ ids, category }) => {
+      const idSet = new Set(Array.isArray(ids) ? ids.map(x => String(x || '')).filter(Boolean) : []);
+      const nextCategory = String(category || '').trim().slice(0, 40);
+      if (!idSet.size) return send(res, 400, JSON.stringify({ error: 'ids required' }));
+      if (!nextCategory) return send(res, 400, JSON.stringify({ error: 'category required' }));
+
+      const list = readJson(FILES.cards, []);
+      let updated = 0;
+      const next = list.map(item => {
+        const id = String(item.id || '');
+        if (!idSet.has(id)) return item;
+        if (String(item.category || '') === nextCategory) return item;
+        updated++;
+        return { ...item, category: nextCategory };
+      });
+
+      if (updated > 0) {
+        writeJson(FILES.cards, next);
+        invalidateBootstrapCache();
+      }
+      return send(res, 200, JSON.stringify({ ok: true, updated, requested: idSet.size, category: nextCategory }));
+    }).catch((err)=>handleParseError(res, err));
+  }
+
   if (u.pathname === '/api/admin/cards/summary-audit' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (!auth(req,res)) return;
     const data = auditCardSummaries();
