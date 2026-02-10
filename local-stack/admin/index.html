@@ -63,6 +63,8 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="loadBootstrapMeta()">Bootstrap体积</button>
           <button class="btn" onclick="loadRuntimeMetrics()">运行态指标</button>
           <button class="btn" onclick="exportAllData()">导出数据JSON</button>
+          <input id="exportCategoryKey" placeholder="导出分类key（可选）" style="max-width:220px"/>
+          <button class="btn" onclick="exportCategoryData()">导出分类JSON</button>
           <button class="btn ok" onclick="repairTabKeys()">自动修复空分类</button>
           <button class="btn" onclick="validateLinks()">链接体检</button>
           <button class="btn ok" onclick="quickFixLinks()">一键修复非法链接</button>
@@ -945,6 +947,28 @@ async function exportAllData(){
   }
 }
 
+
+async function exportCategoryData(){
+  const category = String(document.getElementById('exportCategoryKey')?.value || '').trim();
+  if (!category) return toast('先输入分类 key');
+  try {
+    const payload = await req(`/api/admin/export?category=${encodeURIComponent(category)}`, 'GET');
+    const text = JSON.stringify(payload, null, 2);
+    const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    a.href = url;
+    a.download = `su-web-export-${category}-${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast(`分类导出成功：${category}`);
+  } catch (e) {
+    toast(`分类导出失败：${e?.message || '网络异常'}`);
+  }
+}
 async function resequenceCardsByCurrentView(){
   const q=(document.getElementById('cardSearch')?.value||'').trim().toLowerCase();
   const list=q?cardCache.filter(x=>`${x.id||''} ${x.title||''} ${x.category||''} ${x.summary||''}`.toLowerCase().includes(q)):cardCache;

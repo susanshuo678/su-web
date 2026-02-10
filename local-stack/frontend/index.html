@@ -55,6 +55,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="quickClaimBtn" class="search-clear" type="button" aria-label="只看可领取">只看可领</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="copyAllLinksBtn" class="search-clear" type="button" aria-label="复制全部可领链接">复制可领</button>
+      <button id="exportVisibleBtn" class="search-clear" type="button" aria-label="导出当前筛选JSON">导出JSON</button>
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
       <button id="resetFilterBtn" class="search-clear" type="button" aria-label="重置筛选">重置</button>
     </div>
@@ -63,6 +64,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="image" type="button">含图片</button>
       <button class="filter-chip" data-media="video" type="button">含视频</button>
       <button class="filter-chip" data-media="link" type="button">可领取</button>
+      <button class="filter-chip" data-media="media-link" type="button">图文+可领</button>
       <button class="filter-chip" data-media="fresh-link" type="button">7天可领</button>
       <button class="filter-chip" data-media="fresh-14" type="button">14天更新</button>
       <button class="filter-chip" data-media="content" type="button">含正文</button>
@@ -146,6 +148,7 @@ const randomPickBtnEl = document.getElementById('randomPickBtn');
 const quickClaimBtnEl = document.getElementById('quickClaimBtn');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
 const copyAllLinksBtnEl = document.getElementById('copyAllLinksBtn');
+const exportVisibleBtnEl = document.getElementById('exportVisibleBtn');
 const clearStarBtnEl = document.getElementById('clearStarBtn');
 const starLinkFilterChipEl = document.getElementById('starLinkFilterChip');
 const focusModeToggleEl = document.getElementById('focusModeToggle');
@@ -300,6 +303,7 @@ function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='image') return !!String(card?.image||'').trim();
   if(mediaFilter==='video') return !!String(card?.video||'').trim();
   if(mediaFilter==='link') return hasClaimableLink(card);
+  if(mediaFilter==='media-link') return hasClaimableLink(card) && (!!String(card?.image||'').trim() || !!String(card?.video||'').trim());
   if(mediaFilter==='fresh-link') return hasClaimableLink(card) && isRecentlyUpdated(card, 7);
   if(mediaFilter==='fresh-14') return isRecentlyUpdated(card, 14);
   if(mediaFilter==='content') return !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
@@ -389,6 +393,27 @@ async function copyAllClaimableLinks(){
   const uniq = [...new Set(links)];
   const text = uniq.map((x, i) => `${i + 1}. ${x}`).join('\n');
   await copyPlainText(text, `已复制 ${uniq.length} 条可领链接`);
+}
+
+async function exportVisibleCardsJson(){
+  const active = document.querySelector('.tabpage.active');
+  if (!active) return;
+  const items = [...active.querySelectorAll('.item[data-card-id]')].map((el, idx) => {
+    const title = (el.querySelector('h3')?.textContent || '').replace(/NEW/g,'').trim();
+    const summary = (el.querySelector('.sub')?.textContent || '').replace(/\s+/g, ' ').trim();
+    const link = String(el.querySelector('.card-actions .btn[href]')?.getAttribute('href') || '').trim();
+    return { index: idx + 1, cardId: String(el.dataset.cardId || ''), title, summary, link: link && link !== '#' ? link : '' };
+  });
+  if (!items.length) return showToast('当前栏目暂无可导出内容');
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    tab: currentTabName() || 'help',
+    query: currentQuery,
+    mediaFilter: currentMediaFilter,
+    count: items.length,
+    items
+  };
+  await copyPlainText(JSON.stringify(payload, null, 2), `已复制 ${items.length} 条筛选结果(JSON)`);
 }
 
 async function copyPlainText(text, okText='已复制'){
@@ -774,7 +799,7 @@ function restoreSearchState(){
   const hideVisited = params.get('hideVisited') ?? (safeGetLocalStorage('suweb_hide_visited') || '0');
   const claimUnseen = params.get('claimUnseen') ?? (safeGetLocalStorage('suweb_claim_unseen') || '0');
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link','fresh-link','fresh-14','content','today','today-link','new-24h','starred','unstarred','star-link'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','media-link','fresh-link','fresh-14','content','today','today-link','new-24h','starred','unstarred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
   focusModeEnabled = focusMode === '1';
@@ -869,6 +894,9 @@ if (copyTabDigestBtnEl) {
 }
 if (copyAllLinksBtnEl) {
   copyAllLinksBtnEl.addEventListener('click', copyAllClaimableLinks);
+}
+if (exportVisibleBtnEl) {
+  exportVisibleBtnEl.addEventListener('click', exportVisibleCardsJson);
 }
 if (clearStarBtnEl) {
   clearStarBtnEl.addEventListener('click', () => {
@@ -980,6 +1008,14 @@ window.addEventListener('keydown', (e) => {
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'link' ? '已切换到可领取内容' : '已切换到全部内容');
+    return;
+  }
+  if (e.altKey && (e.key === 'm' || e.key === 'M')) {
+    e.preventDefault();
+    currentMediaFilter = currentMediaFilter === 'media-link' ? 'all' : 'media-link';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'media-link' ? '已切换到图文+可领' : '已切换到全部内容');
     return;
   }
   if (e.altKey && (e.key === 'f' || e.key === 'F')) {

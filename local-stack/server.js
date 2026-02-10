@@ -200,6 +200,23 @@ function sendBootstrap(req, res) {
     return res.end();
   }
 
+  if (req.method === 'HEAD') {
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,HEAD,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+      'Cache-Control': cacheControl,
+      'ETag': etag,
+      'Vary': 'If-None-Match, Accept-Encoding'
+    });
+    return res.end();
+  }
+
   const body = getBootstrapBody(data);
   const acceptEncoding = String(req.headers['accept-encoding'] || '');
   const useBr = !!body.br && /\bbr\b/i.test(acceptEncoding);
@@ -241,6 +258,8 @@ function invalidateBootstrapCache() {
   qualityOverviewCache.ver = '';
   qualityOverviewCache.data = null;
   claimLinksCache.clear();
+  actionabilitySummaryCache.ver = '';
+  actionabilitySummaryCache.data = null;
 }
 
 function pruneInternalCaches() {
@@ -341,6 +360,7 @@ const categoryStatsCache = { ver: '', data: null };
 const recentCardsCache = new Map();
 const qualityOverviewCache = { ver: '', data: null };
 const claimLinksCache = new Map();
+const actionabilitySummaryCache = { ver: '', data: null };
 
 function backupFilePath(file) {
   return `${file}.bak`;
@@ -1129,6 +1149,8 @@ function getRecentCards(limit = 10) {
 
 
 function getCardActionabilitySummary() {
+  const ver = getFileVersionKey(FILES.cards);
+  if (actionabilitySummaryCache.data && actionabilitySummaryCache.ver === ver) return actionabilitySummaryCache.data;
   const cards = getSortedCollection('cards').filter(x => x.enabled !== false);
   const nowMs = Date.now();
   const rowsMap = new Map();
@@ -1155,7 +1177,7 @@ function getCardActionabilitySummary() {
     staleRate: x.total ? Math.round((x.stale14d / x.total) * 100) : 0
   })).sort((a, b) => b.claimableRate - a.claimableRate || b.total - a.total || a.category.localeCompare(b.category));
 
-  return {
+  const data = {
     generatedAt: new Date().toISOString(),
     totals: {
       enabledCards: cards.length,
@@ -1163,6 +1185,9 @@ function getCardActionabilitySummary() {
     },
     rows
   };
+  actionabilitySummaryCache.ver = ver;
+  actionabilitySummaryCache.data = data;
+  return data;
 }
 
 function getCardsQualityOverview() {
@@ -1366,15 +1391,19 @@ function disableStaleCards(days = 30) {
   return { days: safeDays, updated, total: list.length };
 }
 
-function buildExportPayload() {
+function buildExportPayload(category = '') {
+  const cat = String(category || '').trim();
+  const cards = getSortedCollection('cards');
+  const filteredCards = cat ? cards.filter(x => String(x.category || '').trim() === cat) : cards;
   return {
     exportedAt: new Date().toISOString(),
     version: 1,
+    category: cat || 'all',
     data: {
       ads: getSortedCollection('ads'),
       shortcuts: getSortedCollection('shortcuts'),
       tabs: getSortedCollection('tabs'),
-      cards: getSortedCollection('cards')
+      cards: filteredCards
     }
   };
 }
@@ -1762,7 +1791,8 @@ const backend = http.createServer((req, res) => {
 
   if (u.pathname === '/api/admin/export' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (!auth(req,res)) return;
-    return sendJsonWithEtag(req, res, buildExportPayload(), 'private, max-age=0, must-revalidate');
+    const category = String(u.searchParams.get('category') || '').slice(0, 40);
+    return sendJsonWithEtag(req, res, buildExportPayload(category), 'private, max-age=0, must-revalidate');
   }
 
   if (u.pathname === '/api/admin/resequence' && req.method === 'POST') {
