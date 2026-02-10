@@ -91,6 +91,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="fillMissingButtonText()">补齐按钮文案</button>
           <button class="btn ok" onclick="standardizeButtonText()">按钮文案全量标准化</button>
           <button class="btn" onclick="auditStaleCards()">陈旧内容体检</button>
+          <button class="btn" onclick="touchStaleCards()">一键刷新陈旧时间</button>
           <button class="btn danger" onclick="disableStaleCards()">一键停用陈旧内容</button>
           <span id="summaryMeta" class="muted"></span>
         </div>
@@ -1039,6 +1040,19 @@ async function auditStaleCards(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">体检失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`陈旧内容体检失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function touchStaleCards(){
+  if(!confirm('确认把超过 30 天未更新且仍启用的卡片批量刷新为“刚更新”？')) return;
+  try {
+    const r = await req('/api/admin/cards/stale-touch', 'POST', { days: 30 });
+    toast(`刷新完成：更新 ${r.updated||0}/${r.total||0}`);
+    await auditStaleCards();
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`刷新失败：${e?.message || '网络异常'}`);
   }
 }
 

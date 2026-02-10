@@ -82,11 +82,17 @@ function getBootstrapEtag(data) {
 function getBootstrapBody(data) {
   if (bootstrapBodyCache && bootstrapBodyCache.dataRef === data) return bootstrapBodyCache;
   const raw = Buffer.from(JSON.stringify(data), 'utf8');
+  let br = null;
+  let gzip = null;
+  if (raw.length >= 1024) {
+    try { br = zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } }); } catch {}
+    try { gzip = zlib.gzipSync(raw, { level: 6 }); } catch {}
+  }
   bootstrapBodyCache = {
     dataRef: data,
     raw,
-    br: raw.length >= 1024 ? zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } }) : null,
-    gzip: raw.length >= 1024 ? zlib.gzipSync(raw, { level: 6 }) : null
+    br,
+    gzip
   };
   return bootstrapBodyCache;
 }
@@ -128,11 +134,17 @@ function getCachedJsonPayload(data) {
   const body = JSON.stringify(data);
   const raw = Buffer.from(body, 'utf8');
   const etag = `W/"json-${crypto.createHash('sha1').update(body).digest('hex').slice(0, 16)}"`;
+  let br = null;
+  let gzip = null;
+  if (raw.length >= 1024) {
+    try { br = zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } }); } catch {}
+    try { gzip = zlib.gzipSync(raw, { level: 6 }); } catch {}
+  }
   const payload = {
     etag,
     raw,
-    br: raw.length >= 1024 ? zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } }) : null,
-    gzip: raw.length >= 1024 ? zlib.gzipSync(raw, { level: 6 }) : null
+    br,
+    gzip
   };
   jsonResponseCache.set(data, payload);
   return payload;
@@ -1699,6 +1711,32 @@ function disableStaleCards(days = 30) {
   return { days: safeDays, updated, total: list.length };
 }
 
+function touchStaleCards(days = 30) {
+  const safeDays = Math.min(365, Math.max(1, Number(days) || 30));
+  const list = readJson(FILES.cards, []);
+  const nowMs = Date.now();
+  const thresholdMs = safeDays * 24 * 60 * 60 * 1000;
+  const nowIso = new Date().toISOString();
+  let updated = 0;
+
+  const next = list.map(item => {
+    if (item.enabled === false) return item;
+    const tsRaw = String(item.updatedAt || item.createdAt || '').trim();
+    const ts = Date.parse(tsRaw);
+    const stale = !Number.isFinite(ts) || (nowMs - ts >= thresholdMs);
+    if (!stale) return item;
+    updated++;
+    return { ...item, updatedAt: nowIso, createdAt: String(item.createdAt || '').trim() || nowIso };
+  });
+
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+
+  return { days: safeDays, updated, total: list.length, touchedAt: nowIso };
+}
+
 function buildExportPayload(category = '') {
   const cat = String(category || '').trim();
   const cards = getSortedCollection('cards');
@@ -2402,6 +2440,14 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
     const limit = Math.min(100, Math.max(1, Number(u.searchParams.get('limit') || 20)));
     const data = getStaleCards(days, limit);
     return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+  if (u.pathname === '/api/admin/cards/stale-touch' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ days }) => {
+      const result = touchStaleCards(days);
+      return send(res, 200, JSON.stringify({ ok: true, ...result }));
+    }).catch((err)=>handleParseError(res, err));
   }
 
   if (u.pathname === '/api/admin/cards/stale-disable' && req.method === 'POST') {
