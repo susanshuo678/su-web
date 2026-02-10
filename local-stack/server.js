@@ -434,7 +434,8 @@ function writeJson(file, data) {
   return true;
 }
 function send(res, status, body, type = 'application/json; charset=utf-8', method = 'GET') {
-  res.writeHead(status, {
+  const payload = Buffer.isBuffer(body) ? body : Buffer.from(String(body || ''), 'utf8');
+  const headers = {
     'Content-Type': type,
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,HEAD,POST,PUT,DELETE,OPTIONS',
@@ -443,10 +444,12 @@ function send(res, status, body, type = 'application/json; charset=utf-8', metho
     'X-Frame-Options': 'SAMEORIGIN',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-    'Cache-Control': 'no-store'
-  });
+    'Cache-Control': 'no-store',
+    'Content-Length': payload.length
+  };
+  res.writeHead(status, headers);
   if (method === 'HEAD') return res.end();
-  res.end(body);
+  res.end(payload);
 }
 
 function getCachedCompressedAsset(filePath, stat, encoding = 'gzip') {
@@ -1021,6 +1024,27 @@ function touchCardsUpdatedAtByCategory(category = '') {
     invalidateBootstrapCache();
   }
   return { updated, total, category: cat, updatedAt: nowIso };
+}
+
+
+function touchCardsUpdatedAtByIds(ids = []) {
+  const idSet = new Set(Array.isArray(ids) ? ids.map(x => String(x || '').trim()).filter(Boolean) : []);
+  if (!idSet.size) return { updated: 0, requested: 0 };
+  const list = readJson(FILES.cards, []);
+  const nowIso = new Date().toISOString();
+  let updated = 0;
+  const next = list.map(item => {
+    const id = String(item.id || '').trim();
+    if (!idSet.has(id)) return item;
+    const createdAt = String(item.createdAt || '').trim() || nowIso;
+    updated++;
+    return { ...item, createdAt, updatedAt: nowIso };
+  });
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, requested: idSet.size, updatedAt: nowIso };
 }
 
 function appendTrackingToUrl(rawUrl, params = {}) {
@@ -1867,6 +1891,19 @@ const backend = http.createServer((req, res) => {
       return send(res, 200, JSON.stringify({ ok: true, ...result }));
     }).catch((err)=>handleParseError(res, err));
   }
+
+  if (u.pathname === '/api/admin/cards/touch-by-search' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ query, category, limit }) => {
+      const q = String(query || '').trim();
+      const cat = String(category || '').trim();
+      const matched = searchCardsForAdmin(q, cat, limit || 500);
+      const ids = Array.isArray(matched.items) ? matched.items.map(x => String(x.id || '')).filter(Boolean) : [];
+      const result = touchCardsUpdatedAtByIds(ids);
+      return send(res, 200, JSON.stringify({ ok: true, matched: matched.total || 0, ...result }));
+    }).catch((err)=>handleParseError(res, err));
+  }
+
 
 if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
     if (!auth(req,res)) return;

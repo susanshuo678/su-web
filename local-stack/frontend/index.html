@@ -56,6 +56,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <input id="cardSearch" class="search" placeholder="搜索内容（标题/摘要）" aria-label="搜索内容">
       <button id="randomPickBtn" class="search-clear" type="button" aria-label="随机看看">随机</button>
       <button id="quickClaimBtn" class="search-clear" type="button" aria-label="只看可领取">只看可领</button>
+      <button id="quickTodayBtn" class="search-clear" type="button" aria-label="只看今日更新">今日更新</button>
       <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="copyAllLinksBtn" class="search-clear" type="button" aria-label="复制全部可领链接">复制可领</button>
@@ -151,6 +152,7 @@ const clearSearchBtnEl = document.getElementById('clearSearchBtn');
 const resetFilterBtnEl = document.getElementById('resetFilterBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
 const quickClaimBtnEl = document.getElementById('quickClaimBtn');
+const quickTodayBtnEl = document.getElementById('quickTodayBtn');
 const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
 const filterCollapseTipEl = document.getElementById('filterCollapseTip');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
@@ -201,6 +203,14 @@ function updateQuickClaimBtn(){
   quickClaimBtnEl.classList.toggle('active', active);
   quickClaimBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickClaimBtnEl.textContent = active ? '取消只看' : '只看可领';
+}
+
+function updateQuickTodayBtn(){
+  if (!quickTodayBtnEl) return;
+  const active = currentMediaFilter === 'today';
+  quickTodayBtnEl.classList.toggle('active', active);
+  quickTodayBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quickTodayBtnEl.textContent = active ? '取消今日' : '今日更新';
 }
 
 function updateFilterBarUi(){
@@ -710,6 +720,7 @@ function applyData(data){
   tabHangEl.innerHTML = formatTabLabel(baseHangName, list2.length);
   tabBotsEl.innerHTML = formatTabLabel(baseBotsName, list3.length);
   updateQuickClaimBtn();
+  updateQuickTodayBtn();
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = (!focusModeEnabled && adsHtml) ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
   const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p><div class="card-actions"><button class="btn-lite" type="button" onclick="resetFilters()">重置筛选</button></div></section>' : '';
@@ -872,6 +883,7 @@ function restoreSearchState(){
     starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
   }
   updateQuickClaimBtn();
+  updateQuickTodayBtn();
 }
 
 function getAutoRefreshIntervalMs(){
@@ -922,6 +934,15 @@ if (quickClaimBtnEl) {
     if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'link' ? '已切到只看可领取' : '已恢复全部内容');
+  });
+}
+if (quickTodayBtnEl) {
+  quickTodayBtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'today' ? 'all' : 'today';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'today' ? '已切到只看今日更新' : '已恢复全部内容');
   });
 }
 if (toggleFilterBarBtnEl) {

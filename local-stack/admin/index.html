@@ -133,7 +133,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
 
       <section id="cardsView" class="view panel">
         <h3>优惠卡片管理（标题 + 三行摘要）</h3>
-        <div class="row" style="margin-bottom:8px"><input id="cardSearch" placeholder="搜索卡片（ID/标题/分类/摘要）" oninput="onCardSearchInput()"/><button class="btn" type="button" onclick="clearCardSearch()">清空</button><button class="btn" type="button" onclick="resequenceCardsByCurrentView()">按当前视图重排</button><button class="btn" type="button" onclick="batchDisableBySearch()">按搜索批量停用</button><button class="btn ok" type="button" onclick="batchEnableBySearch()">按搜索批量启用</button><button class="btn" type="button" onclick="batchMoveCategoryBySearch()">按搜索批量改分类</button></div>
+        <div class="row" style="margin-bottom:8px"><input id="cardSearch" placeholder="搜索卡片（ID/标题/分类/摘要）" oninput="onCardSearchInput()"/><button class="btn" type="button" onclick="clearCardSearch()">清空</button><button class="btn" type="button" onclick="resequenceCardsByCurrentView()">按当前视图重排</button><button class="btn" type="button" onclick="batchDisableBySearch()">按搜索批量停用</button><button class="btn ok" type="button" onclick="batchEnableBySearch()">按搜索批量启用</button><button class="btn" type="button" onclick="batchMoveCategoryBySearch()">按搜索批量改分类</button><button class="btn ok" type="button" onclick="touchCardsBySearch()">按搜索刷新更新时间</button></div>
         <div class="row" style="margin-bottom:8px">
           <input id="searchTargetButtonText" placeholder="搜索结果按钮文案（如：去领取）" style="max-width:220px"/>
           <button class="btn" type="button" onclick="batchUpdateButtonTextBySearch()">按搜索批量改按钮文案</button>
@@ -1067,6 +1067,23 @@ async function batchMoveCategoryBySearch(){
     toast(`批量改分类失败：${e?.message||'网络异常'}`);
   }
 }
+
+async function touchCardsBySearch(){
+  const q = (document.getElementById('cardSearch')?.value || '').trim();
+  const category = (document.getElementById('quickSearchCategory')?.value || '').trim() || (document.getElementById('searchTargetCategory')?.value || '').trim();
+  if (!q && !category) return toast('请输入搜索关键词或分类后再执行');
+  if(!confirm('确认按当前搜索结果批量刷新更新时间？这会把命中卡片更新为“刚更新”。')) return;
+  try {
+    const r = await req('/api/admin/cards/touch-by-search', 'POST', { query: q, category, limit: 600 });
+    toast(`按搜索刷新完成：更新 ${r.updated||0} / 命中 ${r.matched||0}`);
+    loadAll();
+    loadRecentCards();
+    refreshSummary();
+  } catch (e) {
+    toast(`按搜索刷新失败：${e?.message || '网络异常'}`);
+  }
+}
+
 
 async function batchUpdateButtonTextBySearch(){
   const list = getFilteredCardsBySearch();
