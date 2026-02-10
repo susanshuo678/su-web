@@ -61,9 +61,11 @@
       <button class="filter-chip" data-media="content" type="button">含正文</button>
       <button class="filter-chip" data-media="today" type="button">今日更新</button>
       <button id="starredFilterChip" class="filter-chip" data-media="starred" type="button">已收藏</button>
+      <button id="starLinkFilterChip" class="filter-chip" type="button" aria-label="收藏且可领取">收藏+可领</button>
       <button id="clearStarBtn" class="filter-chip" type="button" aria-label="清空收藏">清空收藏</button>
       <button id="tabScopeToggle" class="filter-chip" type="button" aria-pressed="false">仅看当前栏目</button>
       <button id="recentSortToggle" class="filter-chip" type="button" aria-pressed="false">最近更新优先</button>
+      <button id="focusModeToggle" class="filter-chip" type="button" aria-pressed="false">专注模式</button>
       <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
     </div>
   </div>
@@ -126,12 +128,15 @@ const recentSortToggleEl = document.getElementById('recentSortToggle');
 const clearSearchBtnEl = document.getElementById('clearSearchBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
 const clearStarBtnEl = document.getElementById('clearStarBtn');
+const starLinkFilterChipEl = document.getElementById('starLinkFilterChip');
+const focusModeToggleEl = document.getElementById('focusModeToggle');
 const syncStateEl = document.getElementById('syncState');
 let currentData = null;
 let currentQuery = '';
 let currentMediaFilter = 'all';
 let strictTabScope = false;
 let recentSortEnabled = false;
+let focusModeEnabled = false;
 const STAR_KEY = 'suweb_starred_cards';
 const SANITIZE_CACHE_LIMIT = 120;
 const sanitizeCache = new Map();
@@ -200,16 +205,19 @@ function isSameLocalDay(ts){
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
 
+function hasClaimableLink(card){
+  const link = String(card?.link||'').trim();
+  return !!link && link !== '#';
+}
+
 function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='image') return !!String(card?.image||'').trim();
   if(mediaFilter==='video') return !!String(card?.video||'').trim();
-  if(mediaFilter==='link'){
-    const link = String(card?.link||'').trim();
-    return !!link && link !== '#';
-  }
+  if(mediaFilter==='link') return hasClaimableLink(card);
   if(mediaFilter==='content') return !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
   if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
   if(mediaFilter==='starred') return isCardStarred(card);
+  if(mediaFilter==='star-link') return isCardStarred(card) && hasClaimableLink(card);
   return true;
 }
 
@@ -491,18 +499,20 @@ function applyData(data){
   safeSetLocalStorage('suweb_media_filter', currentMediaFilter);
   safeSetLocalStorage('suweb_strict_tab_scope', strictTabScope ? '1' : '0');
   safeSetLocalStorage('suweb_recent_sort', recentSortEnabled ? '1' : '0');
+  safeSetLocalStorage('suweb_focus_mode', focusModeEnabled ? '1' : '0');
   const tabKeys=[(tabs[0]?.key||'help').trim()||'help',(tabs[1]?.key||'hang').trim()||'hang',(tabs[2]?.key||'bots').trim()||'bots'];
   const inTab=(c,key)=>{ const cat=(c.category||'all').trim(); return cat==='all' || cat===key; };
   const list1=cards.filter(c=>inTab(c,tabKeys[0]));
   const list2=cards.filter(c=>inTab(c,tabKeys[1]));
   const list3=cards.filter(c=>inTab(c,tabKeys[2]));
   const adsHtml = renderAds(currentData.ads||[]);
-  const adsSection = adsHtml ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
+  const adsSection = (!focusModeEnabled && adsHtml) ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
   const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p><div class="card-actions"><button class="btn-lite" type="button" onclick="resetFilters()">重置筛选</button></div></section>' : '';
   const helpCards = strictTabScope ? list1 : (list1.length ? list1 : cards.slice(0,4));
   const hangCards = strictTabScope ? list2 : (list2.length ? list2 : cards.slice(0,3));
   const botsCards = strictTabScope ? list3 : (list3.length ? list3 : cards.slice(0,3));
-  pageHelpEl.innerHTML=`<section class="card"><span class="badge">快捷入口</span>${renderShortcuts(currentData.shortcuts||[])}</section>${adsSection}${noResult || renderCards(helpCards)}`;
+  const shortcutSection = focusModeEnabled ? '' : `<section class="card"><span class="badge">快捷入口</span>${renderShortcuts(currentData.shortcuts||[])}</section>`;
+  pageHelpEl.innerHTML=`${shortcutSection}${adsSection}${noResult || renderCards(helpCards)}`;
   pageHangEl.innerHTML=renderCards(hangCards);
   pageBotsEl.innerHTML=renderCards(botsCards);
   updateSyncTime();
@@ -601,10 +611,12 @@ function restoreSearchState(){
   const media = safeGetLocalStorage('suweb_media_filter') || 'all';
   const strictScope = safeGetLocalStorage('suweb_strict_tab_scope') || '0';
   const recentSort = safeGetLocalStorage('suweb_recent_sort') || '0';
+  const focusMode = safeGetLocalStorage('suweb_focus_mode') || '0';
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link','content','today','starred'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','content','today','starred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
+  focusModeEnabled = focusMode === '1';
   if (searchInputEl) searchInputEl.value = currentQuery;
   mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
   if (tabScopeToggleEl) {
@@ -614,6 +626,13 @@ function restoreSearchState(){
   if (recentSortToggleEl) {
     recentSortToggleEl.classList.toggle('active', recentSortEnabled);
     recentSortToggleEl.setAttribute('aria-pressed', recentSortEnabled ? 'true' : 'false');
+  }
+  if (focusModeToggleEl) {
+    focusModeToggleEl.classList.toggle('active', focusModeEnabled);
+    focusModeToggleEl.setAttribute('aria-pressed', focusModeEnabled ? 'true' : 'false');
+  }
+  if (starLinkFilterChipEl) {
+    starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
   }
 }
 
@@ -659,10 +678,29 @@ if (clearStarBtnEl) {
     const size = getStarSet().size;
     if (!size) return showToast('当前没有收藏');
     clearStarSet();
-    if (currentMediaFilter === 'starred') currentMediaFilter = 'all';
+    if (currentMediaFilter === 'starred' || currentMediaFilter === 'star-link') currentMediaFilter = 'all';
     mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
     if (currentData) applyData(currentData);
     showToast(`已清空 ${size} 条收藏`);
+  });
+}
+if (starLinkFilterChipEl) {
+  starLinkFilterChipEl.addEventListener('click', () => {
+    currentMediaFilter = (currentMediaFilter === 'star-link') ? 'all' : 'star-link';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'star-link' ? '已筛选：收藏且可领取' : '已切回全部内容');
+  });
+}
+if (focusModeToggleEl) {
+  focusModeToggleEl.addEventListener('click', () => {
+    focusModeEnabled = !focusModeEnabled;
+    focusModeToggleEl.classList.toggle('active', focusModeEnabled);
+    focusModeToggleEl.setAttribute('aria-pressed', focusModeEnabled ? 'true' : 'false');
+    if (currentData) applyData(currentData);
+    showToast(focusModeEnabled ? '专注模式已开启' : '专注模式已关闭');
   });
 }
 window.addEventListener('keydown', (e) => {
@@ -708,6 +746,7 @@ if (mediaFilterEls.length) {
     btn.addEventListener('click', () => {
       currentMediaFilter = btn.dataset.media || 'all';
       mediaFilterEls.forEach(x => x.classList.toggle('active', x === btn));
+      if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', false);
       if (currentData) applyData(currentData);
     });
   });

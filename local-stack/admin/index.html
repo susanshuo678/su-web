@@ -74,6 +74,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="disableDuplicateCardsByLink()">一键停用重复链接</button>
           <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
           <button class="btn ok" onclick="fillMissingUpdatedAt()">补齐更新时间</button>
+          <button class="btn ok" onclick="fillMissingButtonText()">补齐按钮文案</button>
           <span id="summaryMeta" class="muted"></span>
         </div>
         <div class="stats">
@@ -664,6 +665,17 @@ async function fillMissingUpdatedAt(){
     refreshSummary();
   } catch (e) {
     toast(`补齐失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function fillMissingButtonText(){
+  if(!confirm('确认自动补齐空按钮文案？有领取链接会填“去领取”，其余填“查看详情”。')) return;
+  try {
+    const r = await req('/api/admin/cards/fill-button-text', 'POST', {});
+    toast(`补齐按钮文案完成：更新 ${r.updated||0}/${r.total||0}`);
+    loadAll();
+  } catch (e) {
+    toast(`补齐按钮文案失败：${e?.message || '网络异常'}`);
   }
 }
 

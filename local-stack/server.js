@@ -992,6 +992,25 @@ function fillCardsUpdatedAt() {
   return { updated, total: list.length };
 }
 
+function fillMissingButtonText() {
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const nowIso = new Date().toISOString();
+  const next = list.map(item => {
+    const text = String(item.buttonText || '').trim();
+    if (text) return item;
+    const link = String(item.link || '').trim();
+    const nextText = (!link || link === '#') ? '查看详情' : '去领取';
+    updated++;
+    return { ...item, buttonText: nextText, updatedAt: nowIso };
+  });
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, total: list.length };
+}
+
 function buildExportPayload() {
   return {
     exportedAt: new Date().toISOString(),
@@ -1453,6 +1472,12 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
     return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 
+  if (u.pathname === '/api/admin/cards/fill-button-text' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = fillMissingButtonText();
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
+  }
+
   if (u.pathname === '/api/upload' && req.method === 'POST') {
     if (!auth(req,res)) return;
     const ip = getClientIp(req);
@@ -1490,9 +1515,13 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
 
       const target = path.join(MEDIA_DIR, safe);
       const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
-      await fs.promises.writeFile(tmp, buf);
-      await fs.promises.rename(tmp, target);
-      send(res,200,JSON.stringify({ok:true,url:`/media/${safe}`}));
+      try {
+        await fs.promises.writeFile(tmp, buf);
+        await fs.promises.rename(tmp, target);
+        send(res,200,JSON.stringify({ok:true,url:`/media/${safe}`}));
+      } finally {
+        try { if (fs.existsSync(tmp)) await fs.promises.unlink(tmp); } catch {}
+      }
     }).catch((err)=>handleParseError(res, err, 'upload failed'));
   }
 
