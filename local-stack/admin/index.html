@@ -61,6 +61,8 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div class="row" style="margin-bottom:10px">
           <button class="btn" onclick="refreshSummary()">刷新统计</button>
           <button class="btn" onclick="loadQuickInsights()">快速洞察</button>
+          <button class="btn" onclick="loadWeeklySnapshot()">7天快照</button>
+          <button class="btn" onclick="loadFreshnessSummary()">时效分层</button>
           <button class="btn" onclick="loadBootstrapMeta()">Bootstrap体积</button>
           <button class="btn" onclick="loadRuntimeMetrics()">运行态指标</button>
           <button class="btn" onclick="pruneRuntimeCaches()">缓存瘦身</button>
@@ -130,6 +132,14 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div class="panel" style="margin-top:10px">
           <h4 style="margin:0 0 8px">卡片快速洞察（启用卡片）</h4>
           <div id="quickInsightsBox" class="muted">点击“快速洞察”查看</div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 8px">7天更新快照</h4>
+          <div id="weeklySnapshotBox" class="muted">点击“7天快照”查看</div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 8px">内容时效分层</h4>
+          <div id="freshnessSummaryBox" class="muted">点击“时效分层”查看</div>
         </div>
         <div class="muted" style="margin-top:10px"></div>
         <div id="duplicateCheckBox" class="muted" style="margin-top:10px"></div>
@@ -364,6 +374,8 @@ async function doLogin(){
       loadBootstrapMeta();
       loadRuntimeMetrics();
       loadQuickInsights();
+      loadWeeklySnapshot();
+      loadFreshnessSummary();
       loadQualityOverview();
       loadActionabilitySummary();
       loadPublishReadiness();
@@ -931,6 +943,50 @@ async function loadQuickInsights(){
   }
 }
 
+async function loadWeeklySnapshot(){
+  const box = document.getElementById('weeklySnapshotBox');
+  if (box) box.innerHTML = '7天快照加载中...';
+  try {
+    const r = await req('/api/admin/cards/weekly-snapshot?limit=8', 'GET');
+    const t = r.totals || {};
+    const rows = Array.isArray(r.topUpdated) ? r.topUpdated : [];
+    const list = rows.length
+      ? `<ul>${rows.map((x, i)=>`<li>${i+1}. <code>${esc(x.id||'-')}</code> ${esc(x.title||'未命名')} · ${esc(x.category||'-')} · ${x.hasClaim ? '可领' : '无链接'} · ${esc(x.updatedAt ? new Date(x.updatedAt).toLocaleString('zh-CN', { hour12:false }) : '-')}</li>`).join('')}</ul>`
+      : '<div class="muted">暂无最近更新数据</div>';
+    if (box) box.innerHTML = `
+      <div>7天更新 ${t.updated7d||0}/${t.enabled||0}（覆盖率 ${t.updated7dRate||0}%） · 其中可领 ${t.claimable7d||0}</div>
+      ${list}
+      <div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('7天快照已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">7天快照加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`7天快照加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function loadFreshnessSummary(){
+  const box = document.getElementById('freshnessSummaryBox');
+  if (box) box.innerHTML = '时效分层加载中...';
+  try {
+    const r = await req('/api/admin/cards/freshness-summary?limit=8', 'GET');
+    const t = r.totals || {};
+    const rows = Array.isArray(r.mostStale) ? r.mostStale : [];
+    const list = rows.length
+      ? `<ul>${rows.map((x, i)=>`<li>${i+1}. <code>${esc(x.id||'-')}</code> ${esc(x.title||'未命名')} · ${esc(x.category||'-')} · ${Number.isFinite(x.daysSinceUpdated) ? `${x.daysSinceUpdated} 天未更新` : '更新时间缺失'} · ${x.hasClaim ? '可领' : '无链接'}</li>`).join('')}</ul>`
+      : '<div class="muted">暂无陈旧内容</div>';
+    if (box) box.innerHTML = `
+      <div>启用 ${t.enabled||0} · 可领 ${t.claimable||0}（${t.claimableRate||0}%） · 更新时间缺失 ${t.unknown||0}（${t.unknownRate||0}%）</div>
+      <div>1天内 ${t.d1||0} · 3天内 ${t.d3||0} · 7天内 ${t.d7||0} · 14天内 ${t.d14||0} · 30天内 ${t.d30||0} · 超30天 ${t.stale30||0}</div>
+      <div style="margin-top:6px">最陈旧内容（前8条）</div>
+      ${list}
+      <div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('内容时效分层已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">时效分层加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`时效分层加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
 async function loadBootstrapMeta(){
   const box = document.getElementById('bootstrapMetaBox');
   if (box) box.innerHTML = 'Bootstrap 信息加载中...';
@@ -962,7 +1018,7 @@ async function loadRuntimeMetrics(){
     if (box) box.innerHTML = `
       <div>进程：RSS ${esc(String(r.memoryRssMb||0))} MB · Heap ${esc(String(r.memoryHeapUsedMb||0))}/${esc(String(r.memoryHeapTotalMb||0))} MB · Uptime ${esc(String(r.uptimeSec||0))} 秒</div>
       <div>会话：tokens ${esc(String(r.tokens||0))} · 登录限流桶 ${esc(String(r.loginAttemptsBuckets||0))} · 上传限流桶 ${esc(String(r.uploadAttemptsBuckets||0))}</div>
-      <div>缓存：json ${esc(String(c.jsonRead||0))} / sorted ${esc(String(c.sortedCollection||0))} / cardSearch ${esc(String(c.cardSearch||0))} / recentCards ${esc(String(c.recentCards||0))} / staticGzip ${esc(String(c.staticGzip||0))} / staticBr ${esc(String(c.staticBr||0))}</div>
+      <div>缓存：json ${esc(String(c.jsonRead||0))} / sorted ${esc(String(c.sortedCollection||0))} / cardSearch ${esc(String(c.cardSearch||0))} / recentCards ${esc(String(c.recentCards||0))} / freshnessSummary ${esc(String(c.freshnessSummary||0))} / staticGzip ${esc(String(c.staticGzip||0))} / staticBr ${esc(String(c.staticBr||0))}</div>
       <div class='muted'>采样时间：${esc(r.generatedAt || '-')}</div>`;
     toast('运行态指标已刷新');
   } catch (e) {

@@ -36,6 +36,11 @@ const UPLOAD_WINDOW_MS = 60 * 1000;
 const UPLOAD_MAX_PER_WINDOW = 20;
 const UPLOAD_ATTEMPTS_MAX_KEYS = 5000;
 
+const bootstrapHits = new Map();
+const BOOTSTRAP_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const BOOTSTRAP_RATE_LIMIT_MAX = 180;
+const BOOTSTRAP_HITS_MAX_KEYS = 5000;
+
 function now() { return Date.now(); }
 
 let bootstrapCache = null;
@@ -278,6 +283,7 @@ function invalidateBootstrapCache() {
   claimDomainStatsCache.clear();
   actionabilitySummaryCache.ver = '';
   actionabilitySummaryCache.data = null;
+  freshnessSummaryCache.clear();
   duplicateReportCache.ver = '';
   duplicateReportCache.data = null;
 }
@@ -299,6 +305,10 @@ function pruneInternalCaches() {
   if (claimDomainStatsCache.size > 20) {
     const keys = [...claimDomainStatsCache.keys()];
     for (let i = 0; i < keys.length - 20; i++) claimDomainStatsCache.delete(keys[i]);
+  }
+  if (freshnessSummaryCache.size > 12) {
+    const keys = [...freshnessSummaryCache.keys()];
+    for (let i = 0; i < keys.length - 12; i++) freshnessSummaryCache.delete(keys[i]);
   }
 }
 
@@ -352,10 +362,53 @@ function pruneLoginAttempts() {
     for (let i = 0; i < keys.length - LOGIN_ATTEMPTS_MAX_KEYS; i++) loginAttempts.delete(keys[i]);
   }
 }
+
+function pruneBootstrapHits() {
+  const t = now();
+  for (const [ip, hits] of bootstrapHits.entries()) {
+    const fresh = hits.filter(ts => t - ts < BOOTSTRAP_RATE_LIMIT_WINDOW_MS);
+    if (fresh.length) bootstrapHits.set(ip, fresh);
+    else bootstrapHits.delete(ip);
+  }
+  if (bootstrapHits.size > BOOTSTRAP_HITS_MAX_KEYS) {
+    const keys = [...bootstrapHits.keys()];
+    for (let i = 0; i < keys.length - BOOTSTRAP_HITS_MAX_KEYS; i++) bootstrapHits.delete(keys[i]);
+  }
+}
+
+function canHitBootstrap(ip) {
+  const t = now();
+  const bucket = (bootstrapHits.get(ip) || []).filter(ts => t - ts < BOOTSTRAP_RATE_LIMIT_WINDOW_MS);
+  if (bucket.length >= BOOTSTRAP_RATE_LIMIT_MAX) {
+    const oldest = bucket[0] || t;
+    const resetSec = Math.max(1, Math.ceil((BOOTSTRAP_RATE_LIMIT_WINDOW_MS - (t - oldest)) / 1000));
+    bootstrapHits.set(ip, bucket);
+    return { ok: false, remaining: 0, resetSec };
+  }
+  const next = [...bucket, t];
+  bootstrapHits.set(ip, next);
+  const oldest = next[0] || t;
+  const resetSec = Math.max(1, Math.ceil((BOOTSTRAP_RATE_LIMIT_WINDOW_MS - (t - oldest)) / 1000));
+  return { ok: true, remaining: Math.max(0, BOOTSTRAP_RATE_LIMIT_MAX - next.length), resetSec };
+}
+
+function applyBootstrapRateLimit(req, res) {
+  const ip = getClientIp(req);
+  const state = canHitBootstrap(ip);
+  res.setHeader('X-RateLimit-Limit', String(BOOTSTRAP_RATE_LIMIT_MAX));
+  res.setHeader('X-RateLimit-Remaining', String(state.remaining));
+  res.setHeader('X-RateLimit-Reset', String(state.resetSec));
+  if (state.ok) return true;
+  res.setHeader('Retry-After', String(state.resetSec));
+  send(res, 429, JSON.stringify({ error: '请求过于频繁，请稍后重试', retryAfterSec: state.resetSec }), 'application/json; charset=utf-8', req.method);
+  return false;
+}
+
 setInterval(() => {
   pruneTokens();
   pruneLoginAttempts();
   pruneUploadAttempts();
+  pruneBootstrapHits();
   pruneInternalCaches();
 }, 10 * 60 * 1000).unref();
 
@@ -387,6 +440,7 @@ const qualityOverviewCache = { ver: '', data: null };
 const claimLinksCache = new Map();
 const claimDomainStatsCache = new Map();
 const actionabilitySummaryCache = { ver: '', data: null };
+const freshnessSummaryCache = new Map();
 const duplicateReportCache = { ver: '', data: null };
 
 function backupFilePath(file) {
@@ -1378,6 +1432,106 @@ function getCardsQuickInsights() {
   };
 }
 
+function getCardsWeeklySnapshot(limit = 8) {
+  const safeLimit = Math.min(30, Math.max(3, Number(limit) || 8));
+  const cards = getSortedCollection('cards');
+  const enabledCards = cards.filter(x => x.enabled !== false);
+  const nowMs = Date.now();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+
+  const recent = enabledCards
+    .map(item => {
+      const ts = Date.parse(String(item.updatedAt || item.createdAt || ''));
+      return {
+        id: String(item.id || ''),
+        title: String(item.title || ''),
+        category: String(item.category || ''),
+        hasClaim: !!String(item.link || '').trim() && String(item.link || '').trim() !== '#',
+        updatedAt: Number.isFinite(ts) ? new Date(ts).toISOString() : ''
+      };
+    })
+    .filter(item => !!item.updatedAt)
+    .sort((a, b) => (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0));
+
+  const updated7d = recent.filter(x => (nowMs - (Date.parse(x.updatedAt) || 0)) <= weekMs);
+  const claimable7d = updated7d.filter(x => x.hasClaim).length;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    totals: {
+      enabled: enabledCards.length,
+      updated7d: updated7d.length,
+      claimable7d,
+      updated7dRate: enabledCards.length ? Math.round((updated7d.length / enabledCards.length) * 100) : 0
+    },
+    topUpdated: recent.slice(0, safeLimit)
+  };
+}
+
+function getCardsFreshnessSummary(limit = 6) {
+  const safeLimit = Math.min(20, Math.max(3, Number(limit) || 6));
+  const ver = getFileVersionKey(FILES.cards);
+  const cacheKey = `${ver}:${safeLimit}`;
+  const hit = freshnessSummaryCache.get(cacheKey);
+  if (hit) return hit;
+
+  const cards = getSortedCollection('cards').filter(x => x.enabled !== false);
+  const nowMs = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const buckets = { d1: 0, d3: 0, d7: 0, d14: 0, d30: 0, stale30: 0, unknown: 0, claimable: 0 };
+
+  const rows = cards.map(item => {
+    const link = String(item.link || '').trim();
+    const hasClaim = !!link && link !== '#';
+    if (hasClaim) buckets.claimable++;
+    const ts = Date.parse(String(item.updatedAt || item.createdAt || ''));
+    if (!Number.isFinite(ts)) {
+      buckets.unknown++;
+      return {
+        id: String(item.id || ''),
+        title: String(item.title || ''),
+        category: String(item.category || ''),
+        hasClaim,
+        updatedAt: '',
+        daysSinceUpdated: null
+      };
+    }
+    const daysSinceUpdated = Math.max(0, Math.floor((nowMs - ts) / dayMs));
+    if (daysSinceUpdated <= 1) buckets.d1++;
+    if (daysSinceUpdated <= 3) buckets.d3++;
+    if (daysSinceUpdated <= 7) buckets.d7++;
+    if (daysSinceUpdated <= 14) buckets.d14++;
+    if (daysSinceUpdated <= 30) buckets.d30++;
+    if (daysSinceUpdated > 30) buckets.stale30++;
+    return {
+      id: String(item.id || ''),
+      title: String(item.title || ''),
+      category: String(item.category || ''),
+      hasClaim,
+      updatedAt: new Date(ts).toISOString(),
+      daysSinceUpdated
+    };
+  });
+
+  const mostStale = rows
+    .filter(x => Number.isFinite(x.daysSinceUpdated))
+    .sort((a, b) => (b.daysSinceUpdated || 0) - (a.daysSinceUpdated || 0))
+    .slice(0, safeLimit);
+
+  const data = {
+    generatedAt: new Date().toISOString(),
+    totals: {
+      enabled: cards.length,
+      ...buckets,
+      claimableRate: cards.length ? Math.round((buckets.claimable / cards.length) * 100) : 0,
+      unknownRate: cards.length ? Math.round((buckets.unknown / cards.length) * 100) : 0
+    },
+    mostStale
+  };
+  freshnessSummaryCache.set(cacheKey, data);
+  return data;
+}
+
 function getCardsQualityOverview() {
   const ver = getFileVersionKey(FILES.cards);
   if (qualityOverviewCache.data && qualityOverviewCache.ver === ver) return qualityOverviewCache.data;
@@ -1549,6 +1703,7 @@ function pruneAllRuntimeCaches() {
     sortedCollection: sortedCollectionCache.size,
     cardSearch: cardSearchCache.size,
     recentCards: recentCardsCache.size,
+    freshnessSummary: freshnessSummaryCache.size,
     staticGzip: staticGzipCache.size,
     staticBr: staticBrCache.size,
     tokens: tokens.size,
@@ -1576,6 +1731,7 @@ function pruneAllRuntimeCaches() {
     sortedCollection: sortedCollectionCache.size,
     cardSearch: cardSearchCache.size,
     recentCards: recentCardsCache.size,
+    freshnessSummary: freshnessSummaryCache.size,
     staticGzip: staticGzipCache.size,
     staticBr: staticBrCache.size,
     tokens: tokens.size,
@@ -1997,6 +2153,7 @@ const backend = http.createServer((req, res) => {
   if (u.pathname === '/health') return send(res, 200, JSON.stringify({ ok: true, service: 'backend', port: BACKEND_PORT, uptimeSec: Math.floor(process.uptime()), tokens: tokens.size, rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024), node: process.version, bootstrapCacheAgeMs: bootstrapCache ? (now() - bootstrapCache.ts) : null }), 'application/json; charset=utf-8', req.method);
   if (u.pathname === '/' || u.pathname === '/admin' || u.pathname === '/admin/' || u.pathname === '/admin/login' || u.pathname === '/admin/login/') return serveFile(req, res, path.join(ROOT, 'admin', 'index.html'));
   if (u.pathname === '/api/bootstrap' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!applyBootstrapRateLimit(req, res)) return;
     return sendBootstrap(req, res);
   }
 
@@ -2091,6 +2248,18 @@ const backend = http.createServer((req, res) => {
     return sendJsonWithEtag(req, res, getCardsQuickInsights(), 'private, max-age=2, stale-while-revalidate=10');
   }
 
+  if (u.pathname === '/api/admin/cards/weekly-snapshot' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const limit = Math.min(30, Math.max(3, Number(u.searchParams.get('limit') || 8)));
+    return sendJsonWithEtag(req, res, getCardsWeeklySnapshot(limit), 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+  if (u.pathname === '/api/admin/cards/freshness-summary' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const limit = Math.min(20, Math.max(3, Number(u.searchParams.get('limit') || 6)));
+    return sendJsonWithEtag(req, res, getCardsFreshnessSummary(limit), 'private, max-age=2, stale-while-revalidate=10');
+  }
+
   if (u.pathname === '/api/admin/cards/quality-overview' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (!auth(req,res)) return;
     return sendJsonWithEtag(req, res, getCardsQualityOverview(), 'private, max-age=2, stale-while-revalidate=10');
@@ -2172,6 +2341,7 @@ const backend = http.createServer((req, res) => {
         sortedCollection: sortedCollectionCache.size,
         cardSearch: cardSearchCache.size,
         recentCards: recentCardsCache.size,
+        freshnessSummary: freshnessSummaryCache.size,
         staticGzip: staticGzipCache.size,
         staticBr: staticBrCache.size
       },
@@ -2587,6 +2757,7 @@ const frontend = http.createServer((req, res) => {
 
   // one-shot payload for fast first screen
   if (u.pathname === '/api/bootstrap' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!applyBootstrapRateLimit(req, res)) return;
     return sendBootstrap(req, res);
   }
 
