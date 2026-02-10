@@ -18,6 +18,7 @@
 .tabpage{display:none}.tabpage.active{display:block}.list{display:grid;gap:10px}.item{content-visibility:auto;contain-intrinsic-size:320px}.item h3{margin:0 0 6px;font-size:16px}.sub{margin:0;color:var(--muted);font-size:13px;white-space:pre-line}
 .media{margin-top:8px;border-radius:10px;overflow:hidden;background:#f2f5fb;aspect-ratio:16/9}.media img,.media video{width:100%;height:100%;object-fit:cover;display:block}
 .btn{margin-top:10px;display:inline-block;padding:8px 12px;background:var(--pri);color:#fff;border-radius:10px;text-decoration:none;font-size:13px}
+.card-actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}.btn-lite{display:inline-block;padding:8px 12px;background:#eef3ff;color:#2a4eab;border-radius:10px;text-decoration:none;font-size:13px;border:1px solid #d6e1ff;cursor:pointer}
 .bottom{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;z-index:60}.bottom .inner{max-width:520px;width:100%;display:flex}
 .nav-btn{flex:1;padding:11px 6px;background:none;border:0;color:#51607e;font-size:20px;display:flex;flex-direction:column;align-items:center;gap:4px}.nav-btn span{font-size:15px}.nav-btn.active{color:var(--pri);font-weight:700}
 .empty{color:var(--muted);font-size:13px;padding:6px 0}
@@ -39,6 +40,7 @@
 .skeleton{position:relative;overflow:hidden;background:#eef2fb;border-radius:10px;min-height:72px;margin-top:8px}
 .skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);animation:shimmer 1.25s infinite}
 @keyframes shimmer{100%{transform:translateX(100%)}}
+.toast{position:fixed;left:50%;bottom:146px;transform:translateX(-50%);background:rgba(20,30,54,.9);color:#fff;padding:8px 12px;border-radius:999px;font-size:12px;z-index:90;display:none;max-width:88vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -55,6 +57,7 @@
       <button class="filter-chip" data-media="image" type="button">含图片</button>
       <button class="filter-chip" data-media="video" type="button">含视频</button>
       <button class="filter-chip" data-media="link" type="button">可领取</button>
+      <button class="filter-chip" data-media="content" type="button">含正文</button>
       <button id="tabScopeToggle" class="filter-chip" type="button" aria-pressed="false">仅看当前栏目</button>
       <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
     </div>
@@ -68,6 +71,7 @@
 <button id="toTopBtn" class="to-top" aria-label="回到顶部" title="回到顶部">回顶部</button>
 <div id="syncTime" class="sync-time" aria-live="polite">尚未同步</div>
 <div id="syncState" class="sync-state" aria-live="polite">等待首次同步</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 <nav class="bottom"><div class="inner">
   <button class="nav-btn active" aria-current="page" aria-label="助力" onclick="switchTab('help',this)">🧩<span id="tab-help">助力</span></button>
   <button class="nav-btn" aria-label="代挂" onclick="switchTab('hang',this)">📌<span id="tab-hang">代挂</span></button>
@@ -75,7 +79,19 @@
 </div></nav>
 
 <script>
-function switchTab(name, btn){document.querySelectorAll('.tabpage').forEach(el=>el.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');document.querySelectorAll('.nav-btn').forEach(el=>{el.classList.remove('active');el.removeAttribute('aria-current');});btn.classList.add('active');btn.setAttribute('aria-current','page');safeSetLocalStorage('suweb_active_tab', name);}
+function saveTabScrollPosition(){
+  const active = document.querySelector('.tabpage.active');
+  if (!active) return;
+  const key = active.id.replace('page-','');
+  safeSetLocalStorage(`suweb_scroll_${key}`, String(window.scrollY || 0));
+}
+function restoreTabScrollPosition(name){
+  const raw = safeGetLocalStorage(`suweb_scroll_${name}`);
+  const y = Number(raw || 0);
+  if (!Number.isFinite(y) || y < 0) return;
+  requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'auto' }));
+}
+function switchTab(name, btn){saveTabScrollPosition();document.querySelectorAll('.tabpage').forEach(el=>el.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');document.querySelectorAll('.nav-btn').forEach(el=>{el.classList.remove('active');el.removeAttribute('aria-current');});btn.classList.add('active');btn.setAttribute('aria-current','page');safeSetLocalStorage('suweb_active_tab', name);restoreTabScrollPosition(name);}
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function safeUrl(raw, fallback = '#'){
   const v = String(raw || '').trim();
@@ -120,11 +136,44 @@ function matchesMediaFilter(card, mediaFilter){
     const link = String(card?.link||'').trim();
     return !!link && link !== '#';
   }
+  if(mediaFilter==='content') return !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
   return true;
 }
 
+function showToast(text){
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = 'block';
+  clearTimeout(window.__suToastTimer);
+  window.__suToastTimer = setTimeout(() => { el.style.display = 'none'; }, 1700);
+}
+
+async function copyCardLink(link){
+  const target = String(link || '').trim();
+  if (!target || target === '#') return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(target);
+      showToast('链接已复制');
+      return;
+    }
+  } catch {}
+  try {
+    const input = document.createElement('input');
+    input.value = target;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    input.remove();
+    showToast('链接已复制');
+  } catch {
+    showToast('复制失败，请手动复制');
+  }
+}
 
 function updateNetworkUi(){
+
   if (!refreshBtnEl) return;
   const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
   refreshBtnEl.classList.toggle('offline', offline);
@@ -147,7 +196,7 @@ function sanitizeHtml(html=''){
 
 function renderShortcuts(list=[]){if(!list.length) return '<p class="empty">暂无快捷入口</p>';return `<div class="grid4">${list.map(x=>`<a class="shortcut" href="${esc(safeUrl(x.link,'#'))}" target="_blank" rel="noopener noreferrer"><div class="icon">${x.icon?`<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(x.icon,''))}" alt="">`:'⚡'}</div><span>${esc(x.name||'入口')}</span></a>`).join('')}</div>`;}
 function renderAds(list=[]){if(!list.length) return ''; const top=list[0]; return `<a class="ad" href="${esc(safeUrl(top.link,'#'))}" target="_blank" rel="noopener noreferrer">${top.image?`<img loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(top.image,''))}" alt="">`:''}<span class="t">${esc(top.title||'推荐')}</span></a>`;}
-function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>`<article class="card item"><h3>${esc(c.title||'未命名')}</h3><p class="sub">${esc(c.summary||'')}</p>${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}${c.link&&c.link!=='#'?`<a class="btn" href="${esc(safeUrl(c.link,'#'))}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a>`:''}</article>`).join('')}</div>`;}
+function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>{const safeLink=safeUrl(c.link,'#');const hasLink=!!(c.link&&c.link!=='#'&&safeLink!=='#');return `<article class="card item"><h3>${esc(c.title||'未命名')}</h3><p class="sub">${esc(c.summary||'')}</p>${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}${hasLink?`<div class="card-actions"><a class="btn" href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a><button class="btn-lite" type="button" onclick="copyCardLink('${esc(safeLink)}')">复制链接</button></div>`:''}</article>`;}).join('')}</div>`;}
 
 let bootstrapInFlight = null;
 let bootstrapCtrl = null;
@@ -395,7 +444,7 @@ function restoreSearchState(){
   const media = safeGetLocalStorage('suweb_media_filter') || 'all';
   const strictScope = safeGetLocalStorage('suweb_strict_tab_scope') || '0';
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','content'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   if (searchInputEl) searchInputEl.value = currentQuery;
   mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));

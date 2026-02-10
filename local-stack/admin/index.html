@@ -24,6 +24,8 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
 .item{border-top:1px dashed #334673;padding-top:10px;margin-top:10px}.muted{color:var(--muted)}
 .toolbar{position:sticky;top:0;z-index:5;display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;padding:8px;border:1px solid #334673;border-radius:10px;background:#101a2e}
 .doc{min-height:320px;border:1px solid #334673;border-radius:10px;padding:12px;background:#0f1528;overflow:auto;line-height:1.7;font-size:15px}
+.quick-item{display:flex;justify-content:space-between;gap:8px;padding:7px 8px;border:1px dashed #334673;border-radius:10px;margin-bottom:6px;background:#101a2f}
+.quick-item code{color:#a7bbff}
 .doc.is-dragover{outline:2px dashed #4f7cff;outline-offset:-6px;background:#102041}
 .doc img,.doc video{max-width:100%;border-radius:8px;margin:8px 0}
 #app{display:none}.view{display:none}.view.active{display:block}
@@ -63,6 +65,8 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="validateLinks()">链接体检</button>
           <button class="btn ok" onclick="quickFixLinks()">一键修复非法链接</button>
           <button class="btn" onclick="runHealthCheck()">健康检查</button>
+          <button class="btn" onclick="auditCardSummaries()">摘要体检</button>
+          <button class="btn ok" onclick="normalizeCardSummaries()">摘要一键规范化</button>
           <button class="btn ok" onclick="normalizeAllOrders()">统一重排顺序</button>
           <span id="summaryMeta" class="muted"></span>
         </div>
@@ -71,6 +75,16 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <div class="kpi"><div class="n" id="kpiShortcuts">0</div><div class="t">快捷入口</div></div>
           <div class="kpi"><div class="n" id="kpiTabs">0</div><div class="t">底部标签</div></div>
           <div class="kpi"><div class="n" id="kpiCards">0</div><div class="t">内容卡片</div></div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 8px">卡片快速检索（后台）</h4>
+          <div class="row">
+            <input id="quickSearchInput" placeholder="输入关键词（标题/摘要/分类/ID）" oninput="debouncedQuickSearch()"/>
+            <input id="quickSearchCategory" placeholder="分类 key（可选）" oninput="debouncedQuickSearch()"/>
+            <button class="btn" type="button" onclick="runQuickSearch(true)">立即搜索</button>
+          </div>
+          <p id="quickSearchMeta" class="muted" style="margin:6px 0 0">输入关键词后可快速跳转到卡片编辑。</p>
+          <div id="quickSearchList" class="muted" style="margin-top:8px"></div>
         </div>
         <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
       </section>
@@ -118,6 +132,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
 <script>
 let token=''; let cardCache=[]; let hasUnsavedChanges=false; let cardSearchTimer=null;
 let lastCardRenderQuery=''; let lastCardRenderFingerprint='';
+let quickSearchTimer=null;
 let unauthorizedHandled = false;
 const safeAttr = v => String(v||'').replace(/["'<>]/g,'');
 const safeHttpUrl = (value) => {
@@ -344,6 +359,51 @@ function clearCardSearch(){
   search.focus();
 }
 
+function jumpToCard(id){
+  const menuBtn = document.querySelector('.m[data-view="cardsView"]');
+  showView('cardsView', menuBtn || undefined);
+  const search = document.getElementById('cardSearch');
+  if (search) {
+    search.value = id;
+    renderCardsFiltered();
+  }
+  setTimeout(()=>{
+    const target = document.getElementById(`cards-${id}`);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 80);
+}
+
+function debouncedQuickSearch(){
+  if (quickSearchTimer) clearTimeout(quickSearchTimer);
+  quickSearchTimer = setTimeout(()=>runQuickSearch(false), 220);
+}
+
+async function runQuickSearch(force=false){
+  const q = (document.getElementById('quickSearchInput')?.value || '').trim();
+  const category = (document.getElementById('quickSearchCategory')?.value || '').trim();
+  const meta = document.getElementById('quickSearchMeta');
+  const listEl = document.getElementById('quickSearchList');
+  if (!q && !category && !force) {
+    if (meta) meta.textContent = '输入关键词后可快速跳转到卡片编辑。';
+    if (listEl) listEl.innerHTML = '';
+    return;
+  }
+  try {
+    if (meta) meta.textContent = '搜索中...';
+    const r = await req(`/api/admin/cards/search?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}&limit=12`, 'GET');
+    const items = Array.isArray(r.items) ? r.items : [];
+    if (meta) meta.textContent = `命中 ${r.total || 0} 条，当前展示 ${items.length} 条`;
+    if (!items.length) {
+      if (listEl) listEl.innerHTML = `<div class='muted'>没有匹配项</div>`;
+      return;
+    }
+    if (listEl) listEl.innerHTML = items.map(x=>`<div class='quick-item'><div><code>${esc(x.id||'')}</code> · ${esc(x.title||'未命名')}<div class='muted'>分类:${esc(x.category||'-')} · 排序:${esc(x.order||'')}</div></div><button class='btn' type='button' onclick="jumpToCard('${esc(x.id||'')}')">定位编辑</button></div>`).join('');
+  } catch (e) {
+    if (meta) meta.textContent = `搜索失败：${e?.message || '网络异常'}`;
+    if (listEl) listEl.innerHTML = '';
+  }
+}
+
 document.getElementById('cardSearch')?.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   e.preventDefault();
@@ -438,6 +498,38 @@ async function runHealthCheck(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">健康检查失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`健康检查失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function auditCardSummaries(){
+  const box = document.getElementById('linkCheckBox');
+  if (box) box.innerHTML = '摘要体检中...';
+  try {
+    const r = await req('/api/admin/cards/summary-audit', 'GET');
+    const issues = Array.isArray(r.issues) ? r.issues : [];
+    if (!issues.length) {
+      if (box) box.innerHTML = `✅ 摘要体检通过（共 ${r.total || 0} 张卡片）`;
+      toast('摘要体检通过');
+      return;
+    }
+    const top = issues.slice(0, 12).map(x=>`<li><code>${esc(x.id||'')}</code> ${esc(x.title||'')} · ${esc(x.issue||'issue')}</li>`).join('');
+    if (box) box.innerHTML = `<div style="color:#ffd3d3">⚠️ 共 ${issues.length} 条摘要问题（展示前 12 条）</div><ul>${top}</ul>`;
+    toast(`摘要体检完成：${issues.length} 条问题`);
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">摘要体检失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`摘要体检失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function normalizeCardSummaries(){
+  if(!confirm('确认把卡片摘要统一规范化（最多三行，合并多余空行）？')) return;
+  try {
+    const r = await req('/api/admin/cards/summary-normalize', 'POST', {});
+    toast(`摘要规范化完成：更新 ${r.updated||0}/${r.total||0}`);
+    await auditCardSummaries();
+    loadAll();
+  } catch (e) {
+    toast(`摘要规范化失败：${e?.message || '网络异常'}`);
   }
 }
 

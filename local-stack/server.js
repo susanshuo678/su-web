@@ -39,12 +39,21 @@ let bootstrapBodyCache = null;
 const BOOTSTRAP_CACHE_TTL_MS = 2000;
 const PUBLIC_API_CACHE_CONTROL = 'public, max-age=15, stale-while-revalidate=60, must-revalidate';
 
+function getEnabledCards() {
+  const ver = getFileVersionKey(FILES.cards);
+  if (enabledCardsCache.data && enabledCardsCache.ver === ver) return enabledCardsCache.data;
+  const data = getSortedCollection('cards').filter(x => x.enabled !== false);
+  enabledCardsCache.ver = ver;
+  enabledCardsCache.data = data;
+  return data;
+}
+
 function buildBootstrapPayload() {
   return {
     ads: getSortedCollection('ads'),
     shortcuts: getSortedCollection('shortcuts'),
     tabs: getSortedCollection('tabs'),
-    cards: getSortedCollection('cards').filter(x => x.enabled !== false)
+    cards: getEnabledCards()
   };
 }
 
@@ -212,6 +221,9 @@ function invalidateBootstrapCache() {
   bootstrapEtagCache = null;
   bootstrapBodyCache = null;
   sortedCollectionCache.clear();
+  enabledCardsCache.ver = '';
+  enabledCardsCache.data = null;
+  cardSearchCache.clear();
 }
 
 function pruneTokens() {
@@ -250,11 +262,16 @@ const ALLOWED_UPLOAD_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.
 const jsonReadCache = new Map();
 const JSON_READ_CACHE_MAX = 32;
 const sortedCollectionCache = new Map();
+const enabledCardsCache = { ver: '', data: null };
 
 const staticGzipCache = new Map();
 const staticBrCache = new Map();
 const STATIC_GZIP_CACHE_MAX = 64;
 const STATIC_GZIP_MAX_BYTES = 256 * 1024;
+
+const cardSearchCache = new Map();
+const CARD_SEARCH_CACHE_TTL_MS = 5000;
+const CARD_SEARCH_CACHE_MAX = 40;
 
 function backupFilePath(file) {
   return `${file}.bak`;
@@ -617,6 +634,86 @@ function getLatestDataUpdatedAt() {
   return new Date(maxTs).toISOString();
 }
 
+function searchCardsForAdmin(query = '', category = '', limit = 30) {
+  const q = String(query || '').trim().toLowerCase();
+  const cat = String(category || '').trim().toLowerCase();
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 30));
+  const cacheKey = `${q}::${cat}::${safeLimit}`;
+  const hit = cardSearchCache.get(cacheKey);
+  const t = now();
+  if (hit && (t - hit.ts) < CARD_SEARCH_CACHE_TTL_MS) return hit.data;
+
+  const list = getSortedCollection('cards');
+  const matched = list.filter(item => {
+    const inCategory = !cat || String(item.category || '').toLowerCase() === cat;
+    if (!inCategory) return false;
+    if (!q) return true;
+    const text = `${item.id || ''} ${item.title || ''} ${item.summary || ''} ${item.category || ''}`.toLowerCase();
+    return text.includes(q);
+  });
+
+  const data = {
+    total: matched.length,
+    limit: safeLimit,
+    items: matched.slice(0, safeLimit).map(item => ({
+      id: item.id,
+      title: item.title || '',
+      category: item.category || '',
+      enabled: item.enabled !== false,
+      order: normalizeOrder(item.order, 9999),
+      summary: String(item.summary || '').slice(0, 120)
+    }))
+  };
+
+  cardSearchCache.set(cacheKey, { ts: t, data });
+  if (cardSearchCache.size > CARD_SEARCH_CACHE_MAX) {
+    const oldest = cardSearchCache.keys().next().value;
+    if (oldest) cardSearchCache.delete(oldest);
+  }
+  return data;
+}
+
+function auditCardSummaries() {
+  const cards = getSortedCollection('cards');
+  const issues = [];
+  for (const item of cards) {
+    const raw = String(item.summary || '');
+    const normalized = raw.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    const lines = normalized ? normalized.split('\n') : [];
+    if (!raw.trim()) {
+      issues.push({ id: item.id, title: item.title || '', issue: 'empty-summary' });
+      continue;
+    }
+    if (lines.length > 3) issues.push({ id: item.id, title: item.title || '', issue: 'too-many-lines', lines: lines.length });
+    if (normalized !== raw) issues.push({ id: item.id, title: item.title || '', issue: 'format-needs-normalize' });
+  }
+  return { total: cards.length, issuesCount: issues.length, issues };
+}
+
+function normalizeCardSummaries() {
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const next = list.map(item => {
+    const raw = String(item.summary || '');
+    const normalized = raw
+      .replace(/\r\n/g, '\n')
+      .replace(/[\t ]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .split('\n')
+      .slice(0, 3)
+      .join('\n')
+      .trim();
+    if (normalized === raw) return item;
+    updated++;
+    return { ...item, summary: normalized };
+  });
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, total: list.length };
+}
+
 function buildExportPayload() {
   return {
     exportedAt: new Date().toISOString(),
@@ -854,6 +951,15 @@ const backend = http.createServer((req, res) => {
     }, 'private, max-age=3, stale-while-revalidate=15');
   }
 
+  if (u.pathname === '/api/admin/cards/search' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const q = String(u.searchParams.get('q') || '').slice(0, 80);
+    const category = String(u.searchParams.get('category') || '').slice(0, 40);
+    const limit = Math.min(100, Math.max(1, Number(u.searchParams.get('limit') || 30)));
+    const data = searchCardsForAdmin(q, category, limit);
+    return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
+  }
+
   if (u.pathname === '/api/admin/validate-links' && (req.method === 'GET' || req.method === 'HEAD')) {
     if (!auth(req,res)) return;
     const invalid = collectInvalidLinks();
@@ -946,6 +1052,18 @@ const backend = http.createServer((req, res) => {
       }
       return send(res, 200, JSON.stringify({ ok: true, updated, requested: idSet.size }));
     }).catch((err)=>handleParseError(res, err));
+  }
+
+  if (u.pathname === '/api/admin/cards/summary-audit' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (!auth(req,res)) return;
+    const data = auditCardSummaries();
+    return sendJsonWithEtag(req, res, data, 'private, max-age=2, stale-while-revalidate=10');
+  }
+
+  if (u.pathname === '/api/admin/cards/summary-normalize' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = normalizeCardSummaries();
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 
   if (u.pathname === '/api/upload' && req.method === 'POST') {
