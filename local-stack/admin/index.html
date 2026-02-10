@@ -101,6 +101,11 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <h3>优惠卡片管理（标题 + 三行摘要）</h3>
         <div class="row" style="margin-bottom:8px"><input id="cardSearch" placeholder="搜索卡片（ID/标题/分类/摘要）" oninput="onCardSearchInput()"/><button class="btn" type="button" onclick="clearCardSearch()">清空</button><button class="btn" type="button" onclick="resequenceCardsByCurrentView()">按当前视图重排</button><button class="btn" type="button" onclick="batchDisableBySearch()">按搜索批量停用</button><button class="btn ok" type="button" onclick="batchEnableBySearch()">按搜索批量启用</button></div>
         <p id="cardSearchMeta" class="muted" style="margin:0 0 6px">显示 0 / 0（快捷键：Ctrl/Cmd+K 聚焦，Esc 清空）</p>
+        <div class="row" style="margin-bottom:8px">
+          <input id="bulkCategoryKey" placeholder="按分类批量启停（category key）"/>
+          <button class="btn" type="button" onclick="toggleCardsByCategory(true)">按分类批量启用</button>
+          <button class="btn danger" type="button" onclick="toggleCardsByCategory(false)">按分类批量停用</button>
+        </div>
         <div id="cards"></div>
         <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
       </section>
@@ -671,6 +676,22 @@ async function batchToggleBySearch(enabled){
 }
 function batchEnableBySearch(){ return batchToggleBySearch(true); }
 function batchDisableBySearch(){ return batchToggleBySearch(false); }
+
+
+async function toggleCardsByCategory(enabled){
+  const category = (document.getElementById('bulkCategoryKey')?.value || '').trim();
+  if(!category) return toast('先输入分类 key');
+  const action = enabled ? '启用' : '停用';
+  if(!confirm(`确认将分类 ${category} 下卡片批量${action}？`)) return;
+  try {
+    const r = await req('/api/admin/cards/toggle-by-category', 'POST', { category, enabled });
+    toast(`分类批量${action}完成：更新 ${r.updated||0}/${r.total||0}`);
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`分类批量${action}失败：${e?.message || '网络异常'}`);
+  }
+}
 
 function loadAll(){
   renderCollection('ads','ads',(x,n)=>`<div id='ads-${n?'new':x.id}' class='grid3'><input data-k='title' placeholder='广告标题' value='${esc(x.title)}'/><input data-k='image' placeholder='广告图URL' value='${esc(x.image)}'/><input data-k='link' placeholder='广告链接' value='${esc(x.link)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/>${n?`<button class='btn ok' onclick="add('ads','new')">新增广告</button>`:btns('ads',x.id)}</div>`);

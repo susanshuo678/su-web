@@ -849,6 +849,27 @@ function disableDuplicateCards(mode = 'title') {
   return { mode, updated, total: cards.length };
 }
 
+
+function toggleCardsEnabledByCategory(category = '', enabled = true) {
+  const cat = String(category || '').trim();
+  if (!cat) return { updated: 0, total: 0, category: '', enabled: enabled !== false };
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const nextEnabled = enabled !== false && String(enabled) !== 'false';
+  const next = list.map(item => {
+    if (String(item.category || '').trim() !== cat) return item;
+    const current = item.enabled !== false;
+    if (current === nextEnabled) return item;
+    updated++;
+    return { ...item, enabled: nextEnabled };
+  });
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, total: list.filter(x => String(x.category || '').trim() === cat).length, category: cat, enabled: nextEnabled };
+}
+
 function buildExportPayload() {
   return {
     exportedAt: new Date().toISOString(),
@@ -1182,7 +1203,18 @@ const backend = http.createServer((req, res) => {
     return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 
-  if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
+  
+  if (u.pathname === '/api/admin/cards/toggle-by-category' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ category, enabled }) => {
+      const cat = String(category || '').trim();
+      if (!cat) return send(res, 400, JSON.stringify({ error: 'category required' }));
+      const result = toggleCardsEnabledByCategory(cat, enabled);
+      return send(res, 200, JSON.stringify({ ok: true, ...result }));
+    }).catch((err)=>handleParseError(res, err));
+  }
+
+if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
     if (!auth(req,res)) return;
     return parseBody(req).then(({ ids, enabled }) => {
       const idSet = new Set(Array.isArray(ids) ? ids.map(x => String(x || '')).filter(Boolean) : []);
