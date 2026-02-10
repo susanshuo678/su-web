@@ -1,55 +1,485 @@
 <!doctype html>
 <html lang="zh-CN"><head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>小苏教程站</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>小苏助手站</title>
 <style>
-body{margin:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif;color:#222}
-.wrap{max-width:460px;margin:0 auto;padding:12px}
-.banner{display:flex;overflow:auto;gap:8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
-.banner-item{min-width:100%;height:130px;border-radius:12px;overflow:hidden;position:relative;scroll-snap-align:start;background:linear-gradient(120deg,#ff6e4a,#ffb53d);color:#fff;text-decoration:none;display:block}
-.banner-item img{width:100%;height:100%;object-fit:cover}.banner-title{position:absolute;left:12px;bottom:10px;background:rgba(0,0,0,.25);padding:4px 8px;border-radius:8px;font-size:13px}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;background:#fff;border-radius:12px;padding:12px;margin-top:12px}
-.entry{text-align:center;text-decoration:none;color:#333;font-size:12px}.entry img{width:46px;height:46px;border-radius:23px;object-fit:cover;background:#f2f2f2}
-.tabs{display:flex;gap:18px;overflow:auto;padding:12px 2px 8px}.tab{white-space:nowrap;color:#555;text-decoration:none;font-weight:600}.tab.active{color:#ff6f3c}
-.coupon{background:linear-gradient(90deg,#ff2323,#ff4b2d);border-radius:12px;padding:6px;margin:10px 0}
-.coupon-in{background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:space-between;padding:10px}
-.left{display:flex;align-items:center;gap:10px}.logo{width:46px;height:46px;border-radius:10px;object-fit:cover;background:#f2f2f2}
-.title{font-size:20px;font-weight:800}.summary{font-size:13px;color:#666;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;max-width:210px;line-height:1.4}
-.btn{width:56px;height:56px;border-radius:28px;background:#ffd2b4;color:#c0392b;display:flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 auto;text-decoration:none}
-.doc-btn{display:inline-block;margin-top:6px;font-size:12px;color:#2c55d8;text-decoration:none}
-#modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:50}#modal .box{background:#fff;max-width:460px;margin:8vh auto 0;border-radius:12px;padding:12px;max-height:80vh;overflow:auto}
-#docWrap img,#docWrap video{max-width:100%;border-radius:8px;margin:8px 0}
-</style></head><body>
-<div class="wrap">
-  <div id="banner" class="banner"></div>
-  <div id="entries" class="grid"></div>
-  <div id="tabs" class="tabs"></div>
-  <div id="cards"></div>
+:root{--bg:#f6f8fc;--card:#fff;--text:#1b2437;--muted:#73809b;--pri:#3a7afe;--line:#e8edf7;--radius:14px;--shadow:0 8px 28px rgba(34,61,120,.08)}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif}
+.app{max-width:520px;margin:0 auto;min-height:100vh;padding:14px 14px 92px}
+.hero{background:linear-gradient(135deg,#3a7afe,#6ea1ff);color:#fff;border-radius:16px;padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
+.hero h1{font-size:22px;margin:0 0 6px}.hero p{margin:0;opacity:.92;font-size:13px}
+.card{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);margin-bottom:12px;border:1px solid var(--line)}
+.badge{display:inline-block;background:#eef3ff;color:#2253c4;border-radius:999px;padding:2px 8px;font-size:12px;margin-bottom:6px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.shortcut{display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;color:var(--text)}
+.icon{width:44px;height:44px;border-radius:12px;background:#f0f4ff;display:grid;place-items:center;overflow:hidden}.icon img{width:100%;height:100%;object-fit:cover}
+.shortcut span{font-size:12px;color:#4b5876;text-align:center}
+.ad{border-radius:12px;overflow:hidden;position:relative;background:#eef3ff;min-height:110px;aspect-ratio:3/1}.ad img{width:100%;height:100%;object-fit:cover;display:block}.ad .t{position:absolute;left:10px;bottom:8px;background:rgba(0,0,0,.5);color:#fff;padding:4px 8px;border-radius:999px;font-size:12px}
+.tabpage{display:none}.tabpage.active{display:block}.list{display:grid;gap:10px}.item{content-visibility:auto;contain-intrinsic-size:320px}.item h3{margin:0 0 6px;font-size:16px}.sub{margin:0;color:var(--muted);font-size:13px;white-space:pre-line}
+.media{margin-top:8px;border-radius:10px;overflow:hidden;background:#f2f5fb;aspect-ratio:16/9}.media img,.media video{width:100%;height:100%;object-fit:cover;display:block}
+.btn{margin-top:10px;display:inline-block;padding:8px 12px;background:var(--pri);color:#fff;border-radius:10px;text-decoration:none;font-size:13px}
+.bottom{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;z-index:60}.bottom .inner{max-width:520px;width:100%;display:flex}
+.nav-btn{flex:1;padding:11px 6px;background:none;border:0;color:#51607e;font-size:20px;display:flex;flex-direction:column;align-items:center;gap:4px}.nav-btn span{font-size:15px}.nav-btn.active{color:var(--pri);font-weight:700}
+.empty{color:var(--muted);font-size:13px;padding:6px 0}
+.notice{background:#fff6e8;color:#9a6500;border:1px solid #f4d7a5;padding:8px 10px;border-radius:10px;font-size:12px;margin-bottom:10px}
+.refresh{position:fixed;right:14px;bottom:94px;background:#1f4fd6;color:#fff;border:0;border-radius:999px;padding:10px 12px;font-size:12px;box-shadow:var(--shadow)}
+.refresh.offline{background:#8a95ad}
+.sync-time{position:fixed;right:14px;bottom:74px;color:#5d6b88;font-size:11px;background:rgba(255,255,255,.88);padding:3px 8px;border-radius:999px;border:1px solid var(--line)}
+.search-wrap{position:sticky;top:8px;z-index:30;background:rgba(246,248,252,.92);backdrop-filter:blur(4px);padding:6px 0 8px}
+.search-row{display:flex;gap:8px;align-items:center}.search{flex:1;width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-size:14px;background:#fff}.search-clear{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;color:#4f607f;font-size:12px;cursor:pointer}
+.filter-row{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.filter-chip{border:1px solid var(--line);background:#fff;color:#42506f;border-radius:999px;padding:6px 10px;font-size:12px;cursor:pointer}
+.filter-chip.active{background:#2d63df;color:#fff;border-color:#2d63df}
+.result-meta{margin-left:auto;color:#687998;font-size:12px}
+.tabpage{display:none;opacity:0;transform:translateY(6px)}.tabpage.active{display:block;opacity:1;transform:none;transition:opacity .18s ease,transform .18s ease}
+.to-top{position:fixed;right:14px;bottom:128px;border:0;background:#334f91;color:#fff;border-radius:999px;padding:9px 11px;font-size:12px;box-shadow:var(--shadow);display:none}
+.to-top.show{display:block}
+.skeleton{position:relative;overflow:hidden;background:#eef2fb;border-radius:10px;min-height:72px;margin-top:8px}
+.skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);animation:shimmer 1.25s infinite}
+@keyframes shimmer{100%{transform:translateX(100%)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="hero"><h1>小苏助手</h1><p>轻量、快、可商用：内容由后台实时配置</p></section>
+  <div id="staleNotice" class="notice" style="display:none" aria-live="polite">当前为离线缓存内容，网络恢复后会自动刷新。</div>
+  <div class="search-wrap">
+    <div class="search-row">
+      <input id="cardSearch" class="search" placeholder="搜索内容（标题/摘要）" aria-label="搜索内容">
+      <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
+    </div>
+    <div class="filter-row" role="group" aria-label="内容筛选">
+      <button class="filter-chip active" data-media="all" type="button">全部</button>
+      <button class="filter-chip" data-media="image" type="button">含图片</button>
+      <button class="filter-chip" data-media="video" type="button">含视频</button>
+      <button class="filter-chip" data-media="link" type="button">可领取</button>
+      <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
+    </div>
+  </div>
+  <section id="page-help" class="tabpage active"><section class="card"><p class="empty">内容加载中...</p><div class="skeleton"></div><div class="skeleton"></div></section></section>
+  <section id="page-hang" class="tabpage"><section class="card"><p class="empty">内容加载中...</p><div class="skeleton"></div></section></section>
+  <section id="page-bots" class="tabpage"><section class="card"><p class="empty">内容加载中...</p><div class="skeleton"></div></section></section>
 </div>
-<div id="modal" onclick="if(event.target.id==='modal')closeDoc()"><div class="box"><div style="display:flex;justify-content:space-between;align-items:center"><h3 id="docTitle">详情</h3><button onclick="closeDoc()">关闭</button></div><div id="docWrap"></div></div></div>
+
+<button id="refreshBtn" class="refresh" aria-label="刷新内容" title="刷新内容" onclick="manualRefresh()">刷新内容</button>
+<button id="toTopBtn" class="to-top" aria-label="回到顶部" title="回到顶部">回顶部</button>
+<div id="syncTime" class="sync-time" aria-live="polite">尚未同步</div>
+<nav class="bottom"><div class="inner">
+  <button class="nav-btn active" aria-current="page" aria-label="助力" onclick="switchTab('help',this)">🧩<span id="tab-help">助力</span></button>
+  <button class="nav-btn" aria-label="代挂" onclick="switchTab('hang',this)">📌<span id="tab-hang">代挂</span></button>
+  <button class="nav-btn" aria-label="机器人列表" onclick="switchTab('bots',this)">🤖<span id="tab-bots">机器人列表</span></button>
+</div></nav>
+
 <script>
-let active='all', cardMap={};
-function openDoc(id){const c=cardMap[id]; if(!c) return; docTitle.innerText=c.title||'详情'; docWrap.innerHTML=c.contentHtml||'<p>暂无正文</p>'; modal.style.display='block';}
-function closeDoc(){modal.style.display='none';}
-async function load(){
-  const [ads, shortcuts, tabsData, cardsData] = await Promise.all([
-    fetch('http://localhost:5005/api/ads').then(r=>r.json()),
-    fetch('http://localhost:5005/api/shortcuts').then(r=>r.json()),
-    fetch('http://localhost:5005/api/tabs').then(r=>r.json()),
-    fetch('http://localhost:5005/api/cards').then(r=>r.json())
-  ]);
-  cardMap = Object.fromEntries(cardsData.map(c=>[c.id,c]));
-  banner.innerHTML = ads.map(a=>`<a class='banner-item' href='${a.link||'#'}' target='_blank'>${a.image?`<img src='${a.image}'/>`:''}<span class='banner-title'>${a.title||''}</span></a>`).join('');
-  entries.innerHTML = shortcuts.map(s=>`<a class='entry' href='${s.link||'#'}' target='_blank'><img src='${s.icon||''}' onerror="this.style.display='none'"/><div>${s.name||''}</div></a>`).join('');
-  tabs.innerHTML = tabsData.map(t=>`<a class='tab ${active===t.key?'active':''}' href='javascript:void(0)' onclick="active='${t.key}';load()">${t.name||''}</a>`).join('');
-  const filtered = cardsData.filter(c=>c.enabled!==false).filter(c=>active==='all'||c.category===active);
-  cards.innerHTML = filtered.map(c=>`<div class='coupon'><div class='coupon-in'>
-      <div class='left'>${c.video?`<video class='logo' src='${c.video}' controls></video>`:`<img class='logo' src='${c.image||''}' onerror="this.style.display='none'"/>`}
-        <div><div class='title'>${c.title||''}</div><div class='summary'>${(c.summary||'').replaceAll('\n','<br/>')}</div>${c.contentHtml?`<a class='doc-btn' href='javascript:void(0)' onclick="openDoc('${c.id}')">查看文档详情</a>`:''}</div>
-      </div>
-      <a class='btn' href='${c.link||'#'}' target='_blank'>${c.buttonText||'领'}</a>
-    </div></div>`).join('');
+function switchTab(name, btn){document.querySelectorAll('.tabpage').forEach(el=>el.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');document.querySelectorAll('.nav-btn').forEach(el=>{el.classList.remove('active');el.removeAttribute('aria-current');});btn.classList.add('active');btn.setAttribute('aria-current','page');safeSetLocalStorage('suweb_active_tab', name);}
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function safeUrl(raw, fallback = '#'){
+  const v = String(raw || '').trim();
+  if (!v) return fallback;
+  if (v.startsWith('/') || v.startsWith('./') || v.startsWith('../') || v.startsWith('#')) return v;
+  try {
+    const u = new URL(v, location.origin);
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
+  } catch {}
+  return fallback;
 }
-load(); setInterval(load, 15000);
+const pageHelpEl = document.getElementById('page-help');
+const pageHangEl = document.getElementById('page-hang');
+const pageBotsEl = document.getElementById('page-bots');
+const tabHelpEl = document.getElementById('tab-help');
+const tabHangEl = document.getElementById('tab-hang');
+const tabBotsEl = document.getElementById('tab-bots');
+const staleNoticeEl = document.getElementById('staleNotice');
+const refreshBtnEl = document.getElementById('refreshBtn');
+const toTopBtnEl = document.getElementById('toTopBtn');
+const searchInputEl = document.getElementById('cardSearch');
+const resultMetaEl = document.getElementById('resultMeta');
+const mediaFilterEls = [...document.querySelectorAll('.filter-chip')];
+const clearSearchBtnEl = document.getElementById('clearSearchBtn');
+let currentData = null;
+let currentQuery = '';
+let currentMediaFilter = 'all';
+let refreshFailCount = 0;
+const REFRESH_FAIL_CAP = 4;
+function matchesQuery(card, query){
+  if(!query) return true;
+  const text = `${card?.title||''} ${card?.summary||''}`.toLowerCase();
+  return text.includes(query);
+}
+function matchesMediaFilter(card, mediaFilter){
+  if(mediaFilter==='image') return !!String(card?.image||'').trim();
+  if(mediaFilter==='video') return !!String(card?.video||'').trim();
+  if(mediaFilter==='link'){
+    const link = String(card?.link||'').trim();
+    return !!link && link !== '#';
+  }
+  return true;
+}
+
+
+function updateNetworkUi(){
+  if (!refreshBtnEl) return;
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  refreshBtnEl.classList.toggle('offline', offline);
+  refreshBtnEl.title = offline ? '当前离线，点击可重试' : '刷新内容';
+  const syncEl = document.getElementById('syncTime');
+  if (syncEl && offline) syncEl.textContent = '当前离线';
+}
+
+function sanitizeHtml(html=''){
+  let out=String(html||'');
+  out=out.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi,'');
+  out=out.replace(/<(iframe|object|embed|link|meta|base)[\s\S]*?>[\s\S]*?<\/\1>/gi,'');
+  out=out.replace(/<(iframe|object|embed|link|meta|base)[^>]*\/?>/gi,'');
+  out=out.replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi,'');
+  out=out.replace(/\s(srcdoc|formaction)=("[^"]*"|'[^']*'|[^\s>]+)/gi,'');
+  out=out.replace(/(href|src)=("|')\s*(javascript:|data:text\/html)[\s\S]*?\2/gi,'$1="#"');
+  out=out.replace(/\sstyle=("|')[\s\S]*?(expression|javascript:)[\s\S]*?\1/gi,'');
+  return out;
+}
+
+function renderShortcuts(list=[]){if(!list.length) return '<p class="empty">暂无快捷入口</p>';return `<div class="grid4">${list.map(x=>`<a class="shortcut" href="${esc(safeUrl(x.link,'#'))}" target="_blank" rel="noopener noreferrer"><div class="icon">${x.icon?`<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(x.icon,''))}" alt="">`:'⚡'}</div><span>${esc(x.name||'入口')}</span></a>`).join('')}</div>`;}
+function renderAds(list=[]){if(!list.length) return ''; const top=list[0]; return `<a class="ad" href="${esc(safeUrl(top.link,'#'))}" target="_blank" rel="noopener noreferrer">${top.image?`<img loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(top.image,''))}" alt="">`:''}<span class="t">${esc(top.title||'推荐')}</span></a>`;}
+function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>`<article class="card item"><h3>${esc(c.title||'未命名')}</h3><p class="sub">${esc(c.summary||'')}</p>${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}${c.link&&c.link!=='#'?`<a class="btn" href="${esc(safeUrl(c.link,'#'))}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a>`:''}</article>`).join('')}</div>`;}
+
+let bootstrapInFlight = null;
+let bootstrapCtrl = null;
+let bootstrapReqSeq = 0;
+let bootstrapAppliedSeq = 0;
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function safeGetLocalStorage(key){
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetLocalStorage(key, value){
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    try {
+      localStorage.removeItem('suweb_bootstrap_cache');
+      localStorage.removeItem('suweb_bootstrap_etag');
+      localStorage.setItem(key, value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function safeRemoveLocalStorage(key){
+  try { localStorage.removeItem(key); } catch {}
+}
+
+
+function getFetchTimeoutMs(force=false){
+  if (typeof navigator === 'undefined') return force ? 5000 : 3000;
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const type = (conn && conn.effectiveType) ? String(conn.effectiveType) : '';
+  if (/2g|slow-2g/i.test(type)) return force ? 9000 : 7000;
+  if (/3g/i.test(type)) return force ? 7000 : 5000;
+  return force ? 5000 : 3000;
+}
+
+async function fetchBootstrapWithRetry(force=false, signal){
+  const attempts = 2;
+  let lastError = null;
+  const cachedEtag = safeGetLocalStorage('suweb_bootstrap_etag') || '';
+  const hasCache = !!safeGetLocalStorage('suweb_bootstrap_cache');
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  if (offline && !force && hasCache) {
+    const err = new Error('offline with cache');
+    err.code = 'OFFLINE_CACHE';
+    throw err;
+  }
+  for (let i = 0; i < attempts; i++) {
+    let timer = null;
+    let timeoutCtrl = null;
+    let onAbort = null;
+    try {
+      const timeoutMs = getFetchTimeoutMs(force);
+      timeoutCtrl = new AbortController();
+      if (signal) {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        onAbort = () => timeoutCtrl.abort();
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+      timer = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
+      const headers = cachedEtag && !force ? { 'If-None-Match': cachedEtag } : {};
+      const resp = await fetch('/api/bootstrap', { signal: timeoutCtrl.signal, cache: force ? 'reload' : 'no-store', headers });
+      if (resp.status === 304) return { notModified: true, etag: cachedEtag, data: null };
+      if (!resp.ok) throw new Error('bootstrap failed');
+      const etag = resp.headers.get('etag') || '';
+      return { notModified: false, etag, data: await resp.json() };
+    } catch (e) {
+      lastError = e;
+      if (signal?.aborted) throw e;
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, 300));
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+    }
+  }
+  throw lastError || new Error('bootstrap failed');
+}
+
+let lastRenderKey = '';
+
+function renderFingerprint(data){
+  const pick=(arr,fields)=> (arr||[]).map(item=>fields.map(k=>String(item?.[k]??'')).join('¦')).join('§');
+  const cardsDigest=(arr=[])=>arr.map(item=>{
+    const contentLen = String(item?.contentHtml || '').length;
+    return [
+      item?.id, item?.order, item?.category, item?.enabled,
+      item?.title, item?.summary, contentLen,
+      item?.image, item?.video, item?.link, item?.buttonText
+    ].map(v=>String(v??'')).join('¦');
+  }).join('§');
+  const ads = pick(data?.ads,['id','order','title','image','link']);
+  const shortcuts = pick(data?.shortcuts,['id','order','name','icon','link']);
+  const tabs = pick(data?.tabs,['id','order','key','name']);
+  const cards = cardsDigest(data?.cards || []);
+  return `${ads}#${shortcuts}#${tabs}#${cards}`;
+}
+
+function updateSyncTime(ts = Date.now()){
+  const el = document.getElementById('syncTime');
+  if (!el) return;
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  el.textContent = `已同步 ${hh}:${mm}:${ss}`;
+}
+
+function applyData(data){
+  currentData = data || {};
+  const renderKey = renderFingerprint(currentData);
+  if (renderKey === lastRenderKey) {
+    updateSyncTime();
+    return;
+  }
+  lastRenderKey = renderKey;
+
+  const tabs=currentData.tabs||[]; tabHelpEl.textContent=tabs[0]?.name||'助力'; tabHangEl.textContent=tabs[1]?.name||'代挂'; tabBotsEl.textContent=tabs[2]?.name||'机器人列表';
+  const cards=(currentData.cards||[]).filter(c=>matchesQuery(c, currentQuery) && matchesMediaFilter(c, currentMediaFilter));
+  if (resultMetaEl) resultMetaEl.textContent = `${cards.length} 条内容`;
+  safeSetLocalStorage('suweb_search_query', currentQuery);
+  safeSetLocalStorage('suweb_media_filter', currentMediaFilter);
+  const tabKeys=[(tabs[0]?.key||'help').trim()||'help',(tabs[1]?.key||'hang').trim()||'hang',(tabs[2]?.key||'bots').trim()||'bots'];
+  const inTab=(c,key)=>{ const cat=(c.category||'all').trim(); return cat==='all' || cat===key; };
+  const list1=cards.filter(c=>inTab(c,tabKeys[0]));
+  const list2=cards.filter(c=>inTab(c,tabKeys[1]));
+  const list3=cards.filter(c=>inTab(c,tabKeys[2]));
+  const adsHtml = renderAds(currentData.ads||[]);
+  const adsSection = adsHtml ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
+  const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p></section>' : '';
+  pageHelpEl.innerHTML=`<section class="card"><span class="badge">快捷入口</span>${renderShortcuts(currentData.shortcuts||[])}</section>${adsSection}${noResult || renderCards(list1.length?list1:cards.slice(0,4))}`;
+  pageHangEl.innerHTML=renderCards(list2.length?list2:cards.slice(0,3));
+  pageBotsEl.innerHTML=renderCards(list3.length?list3:cards.slice(0,3));
+  updateSyncTime();
+}
+
+async function init(force=false){
+  if (bootstrapInFlight && !force) return bootstrapInFlight;
+
+  if (force && bootstrapCtrl) {
+    try { bootstrapCtrl.abort(); } catch {}
+  }
+
+  const reqSeq = ++bootstrapReqSeq;
+  bootstrapCtrl = new AbortController();
+
+  const btn = refreshBtnEl;
+  const originalText = btn?.textContent;
+  if (btn && force) {
+    btn.disabled = true;
+    btn.textContent = '刷新中...';
+  }
+  document.body.setAttribute('aria-busy', 'true');
+
+  bootstrapInFlight = (async ()=>{
+    let cacheShown = false;
+    const cache = safeGetLocalStorage('suweb_bootstrap_cache');
+    if (!force && cache) {
+      try {
+        const parsed = JSON.parse(cache);
+        const isFreshCache = parsed?.ts && (Date.now() - parsed.ts) < CACHE_MAX_AGE_MS;
+        if (parsed?.data && isFreshCache) {
+          applyData(parsed.data);
+          updateSyncTime(parsed.ts || Date.now());
+          staleNoticeEl.style.display = 'none';
+          cacheShown = true;
+        }
+      } catch {}
+    }
+
+    try{
+      const result = await fetchBootstrapWithRetry(force, bootstrapCtrl.signal);
+      if (reqSeq < bootstrapAppliedSeq) return;
+      if (result.notModified && cache) {
+        try {
+          const parsed = JSON.parse(cache);
+          if (!parsed?.data) throw new Error('invalid cache');
+          staleNoticeEl.style.display='none';
+          applyData(parsed.data);
+          updateSyncTime(parsed.ts || Date.now());
+          bootstrapAppliedSeq = reqSeq;
+          return;
+        } catch {
+          safeRemoveLocalStorage('suweb_bootstrap_cache');
+          safeRemoveLocalStorage('suweb_bootstrap_etag');
+        }
+      }
+      const data = result.data;
+      if (result.etag) safeSetLocalStorage('suweb_bootstrap_etag', result.etag);
+      safeSetLocalStorage('suweb_bootstrap_cache', JSON.stringify({ts:Date.now(),data}));
+      staleNoticeEl.style.display='none'; applyData(data);
+      refreshFailCount = 0;
+      bootstrapAppliedSeq = reqSeq;
+    }catch(e){
+      if (e?.name === 'AbortError') return;
+      if (cacheShown) {
+        staleNoticeEl.style.display='block';
+        return;
+      }
+      if(cache){ try{ const parsed=JSON.parse(cache); applyData(parsed.data); staleNoticeEl.style.display='block'; return; }catch{} }
+      refreshFailCount = Math.min(REFRESH_FAIL_CAP, refreshFailCount + 1);
+      pageHelpEl.innerHTML='<section class="card"><p class="empty">加载失败，请稍后重试。</p></section>';
+    } finally {
+      if (btn && force) {
+        btn.disabled = false;
+        btn.textContent = originalText || '刷新内容';
+      }
+      document.body.removeAttribute('aria-busy');
+      if (bootstrapCtrl && bootstrapCtrl.signal.aborted) {
+        // keep silent for superseded refreshes
+      }
+      bootstrapInFlight = null;
+    }
+  })();
+
+  return bootstrapInFlight;
+}
+
+
+function restoreSearchState(){
+  const q = safeGetLocalStorage('suweb_search_query') || '';
+  const media = safeGetLocalStorage('suweb_media_filter') || 'all';
+  currentQuery = String(q).trim().toLowerCase();
+  currentMediaFilter = ['all','image','video','link'].includes(media) ? media : 'all';
+  if (searchInputEl) searchInputEl.value = currentQuery;
+  mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+}
+
+function getAutoRefreshIntervalMs(){
+  const base = 5 * 60 * 1000;
+  return base * Math.max(1, Math.pow(2, refreshFailCount));
+}
+
+function restoreActiveTab(){
+  const saved = safeGetLocalStorage('suweb_active_tab');
+  if (!saved) return;
+  const page = document.getElementById('page-' + saved);
+  if (!page) return;
+  const nav = [...document.querySelectorAll('.nav-btn')].find(el => (el.getAttribute('onclick') || '').includes(`'${saved}'`));
+  if (nav) switchTab(saved, nav);
+}
+
+if (searchInputEl) {
+  searchInputEl.addEventListener('input', () => {
+    currentQuery = String(searchInputEl.value || '').trim().toLowerCase();
+    if (currentData) applyData(currentData);
+  });
+}
+if (clearSearchBtnEl) {
+  clearSearchBtnEl.addEventListener('click', () => {
+    if (!searchInputEl) return;
+    searchInputEl.value = '';
+    currentQuery = '';
+    if (currentData) applyData(currentData);
+    searchInputEl.focus();
+  });
+}
+window.addEventListener('keydown', (e) => {
+  if (e.key === '/' && document.activeElement !== searchInputEl) {
+    e.preventDefault();
+    searchInputEl?.focus();
+  }
+  if (e.key === 'Escape' && document.activeElement === searchInputEl && searchInputEl?.value) {
+    searchInputEl.value = '';
+    currentQuery = '';
+    if (currentData) applyData(currentData);
+  }
+});
+if (mediaFilterEls.length) {
+  mediaFilterEls.forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentMediaFilter = btn.dataset.media || 'all';
+      mediaFilterEls.forEach(x => x.classList.toggle('active', x === btn));
+      if (currentData) applyData(currentData);
+    });
+  });
+}
+if (toTopBtnEl) {
+  toTopBtnEl.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  window.addEventListener('scroll', () => {
+    toTopBtnEl.classList.toggle('show', window.scrollY > 360);
+  }, { passive: true });
+}
+restoreSearchState();
+restoreActiveTab();
+updateNetworkUi();
+init();
+
+let lastAutoRefreshAt = Date.now();
+let lastManualRefreshAt = 0;
+
+function manualRefresh(){
+  const now = Date.now();
+  if (now - lastManualRefreshAt < 800) return;
+  lastManualRefreshAt = now;
+  init(true);
+}
+
+// 页面可见时每5分钟自动静默刷新一次，减少长时间挂页导致内容陈旧
+setInterval(() => {
+  if (document.visibilityState === 'visible') {
+    if (shouldSkipAutoRefresh()) return;
+    if (Date.now() - lastAutoRefreshAt < getAutoRefreshIntervalMs()) return;
+    lastAutoRefreshAt = Date.now();
+    init();
+  }
+}, 60 * 1000);
+
+// 从后台切回前台时，如果超过60秒没刷新过则立即静默刷新一次
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (Date.now() - lastAutoRefreshAt < 60 * 1000) return;
+  if (shouldSkipAutoRefresh()) return;
+  lastAutoRefreshAt = Date.now();
+  init();
+});
+
+// 网络恢复后自动静默刷新，减少离线后回网仍停留旧内容的时间
+window.addEventListener('online', () => {
+  updateNetworkUi();
+  lastAutoRefreshAt = Date.now();
+  init();
+});
+
+window.addEventListener('offline', () => {
+  updateNetworkUi();
+  staleNoticeEl.style.display = 'block';
+});
+
+function shouldSkipAutoRefresh(){
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
 </script>
 </body></html>

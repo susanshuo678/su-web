@@ -1,9 +1,41 @@
 [
   {
-    "id": "demo-1",
-    "title": "欢迎来到教程站",
-    "desc": "这是第一张卡片。你可以在后台修改我。",
-    "link": "https://github.com/susanshuo678/su-web",
-    "image": "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?q=80&w=1200&auto=format&fit=crop"
+    "id": "c-help-1",
+    "title": "助力测试内容",
+    "summary": "这是助力页测试卡片\n支持三行摘要\n用于验证前台展示",
+    "contentHtml": "<p><strong>助力页正文测试</strong></p><p>这段内容来自后台，可在文档编辑器继续编辑。</p>",
+    "link": "#",
+    "image": "",
+    "video": "",
+    "category": "help",
+    "buttonText": "查看",
+    "order": 1,
+    "enabled": true
+  },
+  {
+    "id": "c-hang-1",
+    "title": "代挂测试内容",
+    "summary": "这是代挂页测试卡片\n用于验证第二个底部页\n可后台修改",
+    "contentHtml": "<p>代挂页正文测试。</p>",
+    "link": "#",
+    "image": "",
+    "video": "",
+    "category": "hang",
+    "buttonText": "查看",
+    "order": 2,
+    "enabled": true
+  },
+  {
+    "id": "c-bots-1",
+    "title": "机器人列表测试内容",
+    "summary": "这是机器人页测试卡片\n验证第三个底部页\n支持后续扩展",
+    "contentHtml": "<p>机器人页正文测试。</p>",
+    "link": "#",
+    "image": "",
+    "video": "",
+    "category": "bots",
+    "buttonText": "查看",
+    "order": 3,
+    "enabled": true
   }
 ]

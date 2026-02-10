@@ -1,89 +1,526 @@
 <!doctype html>
 <html lang="zh-CN"><head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>强后台管理 · 5005</title>
+<title>教程站 · 商用后台</title>
 <style>
-body{margin:0;background:#0f1528;color:#e8ecff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif}
-.wrap{max-width:1100px;margin:0 auto;padding:16px}.panel{background:#161f38;border:1px solid #27345f;border-radius:12px;padding:14px;margin:10px 0}
-h1,h3{margin:0 0 10px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-input,textarea{width:100%;padding:9px;border-radius:8px;border:1px solid #334673;background:#0f1528;color:#e8ecff}textarea{min-height:86px}
-.row{display:flex;gap:8px;flex-wrap:wrap}.btn{padding:8px 12px;border-radius:8px;border:0;background:#4f7cff;color:#fff;cursor:pointer}
-.danger{background:#d9534f}.ok{background:#20b26b}.muted{color:#96a3cf}.item{border-top:1px dashed #334673;padding-top:10px;margin-top:10px}#app{display:none}
-.toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.doc{min-height:220px;border:1px solid #334673;border-radius:8px;padding:10px;background:#0f1528;overflow:auto}
+:root{--bg:#0b1220;--panel:#121a2b;--panel2:#19243c;--line:#243250;--text:#e9efff;--muted:#98a6cc;--pri:#4f7cff;--ok:#20b26b;--danger:#e25555}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif}
+.layout{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.sidebar{background:#0f1728;border-right:1px solid var(--line);padding:14px;position:sticky;top:0;height:100vh}
+.brand{font-weight:800;font-size:18px;margin-bottom:4px}.sub{color:var(--muted);font-size:12px}
+.menu{margin-top:14px;display:grid;gap:6px}.m{background:transparent;color:#c8d5ff;border:1px solid transparent;padding:10px 12px;border-radius:10px;text-align:left;cursor:pointer}
+.m.active,.m:hover{background:#16233f;border-color:#284170;color:#fff}
+.main{padding:14px 18px 24px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.title{font-size:22px;font-weight:800}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px}
+.kpi{background:var(--panel2);border:1px solid #2b3f68;border-radius:12px;padding:10px}
+.kpi .n{font-size:22px;font-weight:800}.kpi .t{color:var(--muted);font-size:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #334673;background:#0f1528;color:#e8ecff}textarea{min-height:86px}
+.row{display:flex;gap:8px;flex-wrap:wrap}.btn{padding:8px 12px;border-radius:10px;border:0;background:var(--pri);color:#fff;cursor:pointer}
+.btn.ok{background:var(--ok)}.btn.danger{background:var(--danger)}
+.item{border-top:1px dashed #334673;padding-top:10px;margin-top:10px}.muted{color:var(--muted)}
+.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;padding:8px;border:1px solid #334673;border-radius:10px;background:#101a2e}
+.doc{min-height:320px;border:1px solid #334673;border-radius:10px;padding:12px;background:#0f1528;overflow:auto;line-height:1.7;font-size:15px}
+.doc.is-dragover{outline:2px dashed #4f7cff;outline-offset:-6px;background:#102041}
 .doc img,.doc video{max-width:100%;border-radius:8px;margin:8px 0}
+#app{display:none}.view{display:none}.view.active{display:block}
+@media (max-width:980px){.layout{grid-template-columns:1fr}.sidebar{position:static;height:auto}.stats{grid-template-columns:1fr 1fr}}
 </style></head><body>
-<div class="wrap">
-  <h1>教程站 · 强后台管理</h1>
-  <p class="muted">支持在线文档编辑（类腾讯文档/WPS）+ 图片视频插入到正文中间 + 前台可在线播放</p>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">教程站后台</div>
+    <div class="sub">商用版管理台 / 5005</div>
+    <div class="menu" id="menuWrap">
+      <button class="m active" data-view="dashboard" onclick="showView('dashboard',this)">📊 仪表盘</button>
+      <button class="m" data-view="adsView" onclick="showView('adsView',this)">🖼️ 广告管理</button>
+      <button class="m" data-view="shortcutsView" onclick="showView('shortcutsView',this)">🔗 入口管理</button>
+      <button class="m" data-view="tabsView" onclick="showView('tabsView',this)">🧭 底部导航</button>
+      <button class="m" data-view="cardsView" onclick="showView('cardsView',this)">🧾 卡片内容</button>
+      <button class="m" data-view="editorView" onclick="showView('editorView',this)">✍️ 在线文档</button>
+      <button class="m" data-view="settingsView" onclick="showView('settingsView',this)">⚙️ 系统设置</button>
+    </div>
+  </aside>
 
-  <section id="login" class="panel"><h3>登录（仅密码）</h3>
-    <input id="pwd" type="password" placeholder="输入后台密码"/>
-    <div class="row" style="margin-top:8px"><button class="btn" onclick="login()">登录</button><span id="msg" class="muted"></span></div>
-  </section>
-
-  <div id="app">
-    <section class="panel"><h3>修改后台密码</h3><div class="row"><input id="newPwd" type="password" placeholder="新密码（至少4位）"/><button class="btn ok" onclick="changePwd()">更新密码</button></div></section>
-    <section class="panel"><h3>头部横排广告</h3><div id="ads"></div></section>
-    <section class="panel"><h3>功能入口宫格</h3><div id="shortcuts"></div></section>
-    <section class="panel"><h3>分类 Tabs</h3><div id="tabs"></div></section>
-
-    <section class="panel">
-      <h3>在线文档编辑器（卡片正文）</h3>
-      <p class="muted">先在“优惠卡片管理”选择一张卡片，再在这里编辑正文。支持图片/视频插入并保存为富文本。</p>
-      <div class="row"><input id="editingCardId" placeholder="当前编辑卡片ID" readonly><input id="editingCardTitle" placeholder="当前编辑卡片标题" readonly></div>
-      <div class="toolbar">
-        <button class="btn" onclick="cmd('bold')"><b>B</b></button>
-        <button class="btn" onclick="cmd('insertUnorderedList')">• 列表</button>
-        <button class="btn" onclick="cmd('formatBlock','h2')">H2</button>
-        <button class="btn" onclick="cmd('formatBlock','p')">正文</button>
-        <button class="btn" onclick="insertLink()">插入链接</button>
-        <button class="btn" onclick="insertImageByUrl()">插入图片URL</button>
-        <button class="btn" onclick="insertVideoByUrl()">插入视频URL</button>
-      </div>
-      <div id="docEditor" class="doc" contenteditable="true"></div>
-      <div class="row" style="margin-top:8px"><input id="file" type="file"/><button class="btn ok" onclick="uploadAndInsert()">上传并插入正文</button><button class="btn" onclick="saveDoc()">保存正文到当前卡片</button></div>
+  <main class="main">
+    <section id="login" class="panel">
+      <div class="title">登录后台</div>
+      <p class="muted">输入后台密码后进入管理台</p>
+      <input id="pwd" type="password" placeholder="输入后台密码" autocomplete="current-password" autofocus/>
+      <div class="row" style="margin-top:8px"><button id="loginBtn" class="btn" onclick="doLogin()">登录</button><span id="msg" class="muted"></span></div>
     </section>
 
-    <section class="panel"><h3>优惠卡片管理（标题 + 三行摘要）</h3><div id="cards"></div></section>
-  </div>
-</div>
-<script>
-let token='';
-const H=()=>({'Content-Type':'application/json','X-Admin-Token':token});
-async function req(url,m='GET',b,auth=true){const r=await fetch(url,{method:m,headers:auth?H():{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});if(r.status===401)throw new Error('未授权');return r.json();}
-const esc=s=>String(s??'').replaceAll("'","&#39;");
+    <div id="app">
+      <div class="top"><div class="title">商用后台管理台</div><div class="muted">在线状态 · 已连接</div></div>
 
-async function login(){try{const r=await req('/api/login','POST',{password:pwd.value},false);token=r.token;login.style.display='none';app.style.display='block';loadAll();}catch{msg.innerText='登录失败';}}
-async function changePwd(){await req('/api/change-password','POST',{password:newPwd.value});alert('密码已更新');newPwd.value='';}
+      <section id="dashboard" class="view active panel">
+        <div class="row" style="margin-bottom:10px">
+          <button class="btn" onclick="refreshSummary()">刷新统计</button>
+          <button class="btn" onclick="exportAllData()">导出数据JSON</button>
+          <button class="btn ok" onclick="repairTabKeys()">自动修复空分类</button>
+          <button class="btn" onclick="validateLinks()">链接体检</button>
+          <button class="btn ok" onclick="quickFixLinks()">一键修复非法链接</button>
+          <button class="btn" onclick="runHealthCheck()">健康检查</button>
+          <span id="summaryMeta" class="muted"></span>
+        </div>
+        <div class="stats">
+          <div class="kpi"><div class="n" id="kpiAds">0</div><div class="t">广告数</div></div>
+          <div class="kpi"><div class="n" id="kpiShortcuts">0</div><div class="t">快捷入口</div></div>
+          <div class="kpi"><div class="n" id="kpiTabs">0</div><div class="t">底部标签</div></div>
+          <div class="kpi"><div class="n" id="kpiCards">0</div><div class="t">内容卡片</div></div>
+        </div>
+        <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
+      </section>
+
+      <section id="adsView" class="view panel"><h3>头部横排广告</h3><div id="ads"></div></section>
+      <section id="shortcutsView" class="view panel"><h3>功能入口宫格</h3><div id="shortcuts"></div></section>
+      <section id="tabsView" class="view panel"><h3>分类 Tabs</h3><div id="tabs"></div></section>
+
+      <section id="cardsView" class="view panel">
+        <h3>优惠卡片管理（标题 + 三行摘要）</h3>
+        <div class="row" style="margin-bottom:8px"><input id="cardSearch" placeholder="搜索卡片（ID/标题/分类/摘要）" oninput="onCardSearchInput()"/><button class="btn" type="button" onclick="clearCardSearch()">清空</button><button class="btn" type="button" onclick="resequenceCardsByCurrentView()">按当前视图重排</button><button class="btn" type="button" onclick="batchDisableBySearch()">按搜索批量停用</button><button class="btn ok" type="button" onclick="batchEnableBySearch()">按搜索批量启用</button></div>
+        <p id="cardSearchMeta" class="muted" style="margin:0 0 6px">显示 0 / 0（快捷键：Ctrl/Cmd+K 聚焦，Esc 清空）</p>
+        <div id="cards"></div>
+        <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
+      </section>
+
+      <section id="editorView" class="view panel">
+        <h3>在线文档编辑器（卡片正文）</h3>
+        <p class="muted">先在“卡片内容”点“编辑文档”，再在此处编辑正文。支持图片/视频插入并在线播放。</p>
+        <div class="row"><input id="editingCardId" placeholder="当前编辑卡片ID" readonly><input id="editingCardTitle" placeholder="当前编辑卡片标题" readonly></div>
+        <div class="toolbar">
+          <button class="btn" onclick="cmd('bold')"><b>B</b></button>
+          <button class="btn" onclick="cmd('insertUnorderedList')">• 列表</button>
+          <button class="btn" onclick="cmd('formatBlock','h2')">H2</button>
+          <button class="btn" onclick="cmd('formatBlock','p')">正文</button>
+          <button class="btn" onclick="insertLink()">插入链接</button>
+          <button class="btn" onclick="insertImageByUrl()">图片URL</button>
+          <button class="btn" onclick="insertVideoByUrl()">视频URL</button>
+        </div>
+        <div id="docEditor" class="doc" contenteditable="true"></div>
+        <p class="muted" style="margin:6px 0 0">可直接把图片/视频拖到编辑区，或粘贴截图自动上传插入（接近腾讯文档/WPS交互）。</p>
+        <div class="row" style="margin-top:8px"><input id="file" type="file" accept="image/*,video/*"/><button class="btn ok" onclick="uploadAndInsert()">上传并插入正文</button><button class="btn" onclick="saveDoc()">保存正文到当前卡片</button></div>
+        <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
+      </section>
+
+      <section id="settingsView" class="view panel">
+        <h3>系统设置</h3>
+        <div class="row"><input id="newPwd" type="password" placeholder="新密码（至少4位）"/><button class="btn ok" onclick="changePwd()">更新密码</button></div>
+        <div id="linkCheckBox" class="muted" style="margin-top:10px"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+let token=''; let cardCache=[]; let hasUnsavedChanges=false; let cardSearchTimer=null;
+let lastCardRenderQuery=''; let lastCardRenderFingerprint='';
+let unauthorizedHandled = false;
+const safeAttr = v => String(v||'').replace(/["'<>]/g,'');
+const safeHttpUrl = (value) => {
+  const cleaned = safeAttr(value).trim();
+  if (!cleaned) return '';
+  try {
+    const u = new URL(cleaned, location.origin);
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
+  } catch {}
+  return '';
+};
+const H=()=>({'Content-Type':'application/json','X-Admin-Token':token});
+function markDirty(){ hasUnsavedChanges=true; }
+function clearDirty(){ hasUnsavedChanges=false; }
+function handleUnauthorized(){
+  if (unauthorizedHandled) return;
+  unauthorizedHandled = true;
+  token='';
+  app.style.display='none';
+  login.style.display='block';
+  msg.innerText='登录已过期，请重新登录';
+  toast('登录已过期，请重新登录');
+  setTimeout(()=>{ unauthorizedHandled = false; }, 1500);
+}
+window.addEventListener('beforeunload', (e)=>{ if(!hasUnsavedChanges) return; e.preventDefault(); e.returnValue=''; });
+document.addEventListener('input', (e)=>{ if(e.target.matches('input,textarea,[contenteditable="true"]')) markDirty(); });
+document.addEventListener('change', (e)=>{ if(e.target.matches('input,textarea,select')) markDirty(); });
+document.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ const v=document.querySelector('.view.active')?.id; if(v==='editorView'){ e.preventDefault(); saveDoc(); } }});
+document.addEventListener('keydown', (e)=>{
+  if (!(e.ctrlKey || e.metaKey)) return;
+  if (e.key.toLowerCase() !== 'k') return;
+  const search = document.getElementById('cardSearch');
+  if (!search) return;
+  e.preventDefault();
+  const menuBtn = document.querySelector('.m[data-view="cardsView"]');
+  showView('cardsView', menuBtn || undefined);
+  search.focus();
+  search.select();
+});
+async function runWithButton(btn, pendingText, fn){
+  if (!btn) return fn();
+  if (btn.dataset.loading === '1') return;
+  const old = btn.textContent;
+  btn.dataset.loading = '1';
+  btn.disabled = true;
+  if (pendingText) btn.textContent = pendingText;
+  try { return await fn(); }
+  finally {
+    btn.disabled = false;
+    btn.dataset.loading = '0';
+    btn.textContent = old;
+  }
+}
+
+function toast(text){
+  const now = Date.now();
+  if (window.__lastToastText === text && (now - (window.__lastToastAt || 0)) < 2000) return;
+  window.__lastToastText = text;
+  window.__lastToastAt = now;
+  let el=document.getElementById('toast');
+  if(!el){el=document.createElement('div');el.id='toast';el.style.cssText='position:fixed;right:16px;top:16px;background:#1d2b4b;color:#fff;padding:8px 12px;border-radius:10px;border:1px solid #345287;z-index:9999';document.body.appendChild(el);}
+  el.textContent=text; el.style.display='block'; clearTimeout(window.__toastTimer); window.__toastTimer=setTimeout(()=>el.style.display='none',1800);
+}
+async function req(url,m='GET',b,auth=true){
+  const method = String(m || 'GET').toUpperCase();
+  const isIdempotent = method === 'GET' || method === 'HEAD' || method === 'PUT' || method === 'DELETE';
+  const maxAttempts = isIdempotent ? 2 : 1;
+  let lastErr = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(()=>ctrl.abort(), 8000);
+    try {
+      const r=await fetch(url,{method:method,headers:auth?H():{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined, signal: ctrl.signal, cache: method === 'GET' ? 'no-store' : 'default'});
+      if (r.status===401) {
+        if (auth) handleUnauthorized();
+        throw new Error('未授权');
+      }
+      const text = await r.text();
+      let json = {};
+      try { json = text ? JSON.parse(text) : {}; } catch {}
+      if(!r.ok) throw new Error(json.error || '请求失败');
+      return json;
+    } catch (e) {
+      lastErr = e;
+      const isAbort = e?.name === 'AbortError';
+      if (attempt < maxAttempts && (isAbort || /Failed to fetch/i.test(String(e?.message || '')))) {
+        await new Promise(r => setTimeout(r, 250 * attempt));
+        continue;
+      }
+      if (isAbort) throw new Error('请求超时，请重试');
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('当前离线，请检查网络后重试');
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw lastErr || new Error('请求失败');
+}
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function showView(id,btn){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('.m').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active'); try{ localStorage.setItem('suweb_admin_active_view', id); }catch{}}
+function restoreActiveView(){
+  let id='dashboard';
+  try { id = localStorage.getItem('suweb_admin_active_view') || 'dashboard'; } catch {}
+  const target = document.getElementById(id);
+  const menuBtn = document.querySelector(`.m[data-view="${id}"]`);
+  if (target) showView(id, menuBtn || undefined);
+}
+
+pwd.addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
+
+async function doLogin(){
+  const btn = document.getElementById('loginBtn');
+  msg.innerText='';
+  const password = (pwd.value || '').trim();
+  if (!password) { msg.innerText = '请输入密码'; return; }
+  await runWithButton(btn, '登录中...', async ()=>{
+    try{
+      const r=await req('/api/login','POST',{password},false);
+      token=r.token;
+      login.style.display='none';
+      app.style.display='block';
+      loadAll();
+      refreshSummary();
+      restoreActiveView();
+      toast('登录成功');
+    } catch(e) {
+      msg.innerText = `登录失败（${e?.message || '请确认密码/刷新页面'}）`;
+    }
+  });
+}
+async function changePwd(){const btn=document.activeElement;await runWithButton(btn,'更新中...',async()=>{await req('/api/change-password','POST',{password:newPwd.value});clearDirty();toast('密码已更新');newPwd.value='';});}
 
 function cmd(name,val=null){document.execCommand(name,false,val);docEditor.focus();}
-function insertLink(){const u=prompt('输入链接 URL'); if(!u) return; document.execCommand('createLink',false,u);}
-function insertImageByUrl(){const u=prompt('图片 URL'); if(!u) return; document.execCommand('insertHTML',false,`<img src="${u}" alt=""/>`);}
-function insertVideoByUrl(){const u=prompt('视频 URL(mp4/webm)'); if(!u) return; document.execCommand('insertHTML',false,`<video src="${u}" controls style="max-width:100%"></video>`);}
+function insertLink(){
+  const u = safeHttpUrl(prompt('输入链接 URL') || '');
+  if(!u) return toast('仅支持 http/https 链接');
+  document.execCommand('createLink',false,u);
+}
+function insertImageByUrl(){
+  const u = safeHttpUrl(prompt('图片 URL') || '');
+  if(!u) return toast('仅支持 http/https 图片地址');
+  document.execCommand('insertHTML',false,`<img src="${u}" alt=""/>`);
+}
+function insertVideoByUrl(){
+  const u = safeHttpUrl(prompt('视频 URL(mp4/webm)') || '');
+  if(!u) return toast('仅支持 http/https 视频地址');
+  document.execCommand('insertHTML',false,`<video src="${u}" controls style="max-width:100%"></video>`);
+}
 
-async function uploadAndInsert(){
-  const f=file.files[0]; if(!f) return alert('先选文件');
+async function uploadFileAndInsert(f){
+  if(!f) return;
+  if(!(f.type||'').startsWith('image/') && !(f.type||'').startsWith('video/')) return toast('仅支持图片/视频');
+  const MAX_UPLOAD_MB = 3;
+  if (f.size > MAX_UPLOAD_MB * 1024 * 1024) return toast(`文件过大，单个文件最多 ${MAX_UPLOAD_MB}MB`);
   const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f);});
   const r=await req('/api/upload','POST',{filename:f.name,contentBase64:b64});
-  const url='http://localhost:5005'+r.url;
-  if(f.type.startsWith('video/')) document.execCommand('insertHTML',false,`<video src="${url}" controls style="max-width:100%"></video>`);
+  const url=location.origin + r.url;
+  if((f.type||'').startsWith('video/')) document.execCommand('insertHTML',false,`<video src="${url}" controls style="max-width:100%"></video>`);
   else document.execCommand('insertHTML',false,`<img src="${url}" alt=""/>`);
+  markDirty();
 }
+async function uploadAndInsert(){
+  const btn=document.activeElement;
+  const f=file.files[0];
+  if(!f) return alert('先选文件');
+  await runWithButton(btn,'上传中...',async()=>{
+    try {
+      await uploadFileAndInsert(f);
+      toast('文件已插入正文');
+    } catch (e) {
+      toast(`上传失败：${e?.message||'请稍后重试'}`);
+    }
+  });
+}
+async function saveDoc(){const btn=document.activeElement;const id=editingCardId.value; if(!id) return alert('先选择一张卡片'); await runWithButton(btn,'保存中...',async()=>{await req('/api/cards/'+id,'PUT',{contentHtml:docEditor.innerHTML}); clearDirty(); toast('文档已保存');});}
 
-async function saveDoc(){
-  const id=editingCardId.value; if(!id) return alert('先选择一张卡片');
-  await req('/api/cards/'+id,'PUT',{contentHtml:docEditor.innerHTML});
-  alert('文档已保存');
-}
+['dragenter','dragover'].forEach(evt=>docEditor.addEventListener(evt,(e)=>{e.preventDefault();docEditor.classList.add('is-dragover');}));
+['dragleave','drop'].forEach(evt=>docEditor.addEventListener(evt,(e)=>{e.preventDefault();docEditor.classList.remove('is-dragover');}));
+docEditor.addEventListener('drop', async (e)=>{
+  const files=[...(e.dataTransfer?.files||[])];
+  if(!files.length) return;
+  let ok = 0;
+  for(const f of files){
+    try { await uploadFileAndInsert(f); ok++; } catch (err) { console.warn('drop upload failed', err); }
+  }
+  toast(ok===files.length ? `已插入 ${ok} 个文件` : `已插入 ${ok}/${files.length} 个文件（部分失败）`);
+});
+docEditor.addEventListener('paste', async (e)=>{
+  const items=[...(e.clipboardData?.items||[])];
+  const files=items.filter(i=>i.kind==='file').map(i=>i.getAsFile()).filter(Boolean);
+  if(!files.length) return;
+  e.preventDefault();
+  let ok = 0;
+  for(const f of files){
+    try { await uploadFileAndInsert(f); ok++; } catch (err) { console.warn('paste upload failed', err); }
+  }
+  toast(ok===files.length ? `已粘贴插入 ${ok} 个文件` : `已粘贴插入 ${ok}/${files.length} 个文件（部分失败）`);
+});
 
 function btns(api,id){return `<div class='row'><button class='btn' onclick="save('${api}','${id}')">保存</button><button class='btn' onclick="editDoc('${id}')">编辑文档</button><button class='btn danger' onclick="del('${api}','${id}')">删除</button></div>`}
-async function save(api,id){const box=document.getElementById(`${api}-${id}`);const data=Object.fromEntries([...box.querySelectorAll('[data-k]')].map(i=>[i.dataset.k, i.type==='checkbox'?i.checked:i.value]));await req(`/api/${api}/${id}`,'PUT',data);loadAll();}
-async function del(api,id){await req(`/api/${api}/${id}`,'DELETE');loadAll();}
-async function add(api,tempId){const box=document.getElementById(`${api}-${tempId}`);const data=Object.fromEntries([...box.querySelectorAll('[data-k]')].map(i=>[i.dataset.k, i.type==='checkbox'?i.checked:i.value]));await req(`/api/${api}`,'POST',data);loadAll();}
+async function save(api,id){const btn=document.activeElement;const box=document.getElementById(`${api}-${id}`);const data=Object.fromEntries([...box.querySelectorAll('[data-k]')].map(i=>[i.dataset.k, i.type==='checkbox'?i.checked:i.value]));await runWithButton(btn,'保存中...',async()=>{await req(`/api/${api}/${id}`,'PUT',data);clearDirty();toast('保存成功');loadAll();});}
+async function del(api,id){
+  if(!confirm(`确认删除 ${api} / ${id} ?`)) return;
+  const btn=document.activeElement;
+  await runWithButton(btn,'删除中...',async()=>{await req(`/api/${api}/${id}`,'DELETE');
+  clearDirty();
+  toast('删除成功');
+  loadAll();});
+}
+async function add(api,tempId){const btn=document.activeElement;const box=document.getElementById(`${api}-${tempId}`);const data=Object.fromEntries([...box.querySelectorAll('[data-k]')].map(i=>[i.dataset.k, i.type==='checkbox'?i.checked:i.value]));await runWithButton(btn,'新增中...',async()=>{await req(`/api/${api}`,'POST',data);clearDirty();toast('新增成功');loadAll();});}
 
-let cardCache=[];
-function renderCollection(elId, apiName, tpl){req('/api/'+apiName,'GET',null,false).then(list=>{const root=document.getElementById(elId);root.innerHTML=`<div class='item'>${tpl({},true)}</div>`+list.map(x=>`<div class='item'>${tpl(x,false)}</div>`).join('');if(apiName==='cards') cardCache=list;});}
-function editDoc(id){const c=cardCache.find(x=>x.id===id);if(!c) return; editingCardId.value=c.id; editingCardTitle.value=c.title||''; docEditor.innerHTML=c.contentHtml||c.contentMd||''; window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});}
+function editDoc(id){const c=cardCache.find(x=>x.id===id);if(!c) return; editingCardId.value=c.id; editingCardTitle.value=c.title||''; docEditor.innerHTML=c.contentHtml||c.contentMd||''; showView('editorView', document.querySelector('.m[data-view="editorView"]')); window.scrollTo({top:0,behavior:'smooth'});}
+function onCardSearchInput(){
+  if (cardSearchTimer) clearTimeout(cardSearchTimer);
+  cardSearchTimer = setTimeout(renderCardsFiltered, 180);
+}
+function clearCardSearch(){
+  const search = document.getElementById('cardSearch');
+  if (!search) return;
+  search.value = '';
+  renderCardsFiltered();
+  search.focus();
+}
+
+document.getElementById('cardSearch')?.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  e.preventDefault();
+  clearCardSearch();
+});
+
+function renderCardsFiltered(){
+  const q=(document.getElementById('cardSearch')?.value||'').trim().toLowerCase();
+  const root=document.getElementById('cards');
+  const meta=document.getElementById('cardSearchMeta');
+  const tpl=(x,n)=>`<div id='cards-${n?'new':x.id}'><div class='grid'><input data-k='title' placeholder='标题' value='${esc(x.title)}'/><input data-k='category' placeholder='分类key' value='${esc(x.category)}'/></div><textarea data-k='summary' placeholder='三行摘要'>${esc(x.summary)}</textarea><div class='grid3'><input data-k='image' placeholder='图片URL' value='${esc(x.image)}'/><input data-k='video' placeholder='视频URL' value='${esc(x.video)}'/><input data-k='link' placeholder='链接' value='${esc(x.link)}'/></div><div class='grid3'><input data-k='buttonText' placeholder='按钮文案' value='${esc(x.buttonText)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/><label>启用 <input data-k='enabled' type='checkbox' ${x.enabled!==false?'checked':''}/></label></div>${n?`<button class='btn ok' onclick="add('cards','new')">新增卡片</button>`:btns('cards',x.id)}</div>`;
+  const list=q?cardCache.filter(x=>`${x.id||''} ${x.title||''} ${x.category||''} ${x.summary||''}`.toLowerCase().includes(q)):cardCache;
+  const fingerprint = `${q}::${list.length}::${cardCache.length}::${list.map(x=>`${x.id}|${x.title||''}|${x.category||''}|${x.order||''}|${x.enabled!==false}`).join(',')}`;
+  if (fingerprint === lastCardRenderFingerprint && q === lastCardRenderQuery) {
+    if (meta) meta.textContent = `显示 ${list.length} / ${cardCache.length}`;
+    return;
+  }
+  lastCardRenderQuery = q;
+  lastCardRenderFingerprint = fingerprint;
+  if (meta) meta.textContent = q
+    ? `关键词「${q}」：显示 ${list.length} / ${cardCache.length}`
+    : `显示 ${list.length} / ${cardCache.length}`;
+  const listHtml = list.length
+    ? list.map(x=>`<div class='item'>${tpl(x,false)}</div>`).join('')
+    : `<div class='item'><p class='muted'>未匹配到卡片，试试缩短关键词或按 Esc 清空搜索。</p></div>`;
+  root.innerHTML=`<div class='item'>${tpl({},true)}</div>` + listHtml;
+}
+function renderCollection(elId, apiName, tpl){
+  req('/api/'+apiName,'GET',null,false).then(list=>{
+    const root=document.getElementById(elId);
+    if(apiName==='cards'){
+      cardCache=list; renderCardsFiltered();
+    } else {
+      root.innerHTML=`<div class='item'>${tpl({},true)}</div>`+list.map(x=>`<div class='item'>${tpl(x,false)}</div>`).join('');
+    }
+    if(apiName==='ads')kpiAds.innerText=list.length;
+    if(apiName==='shortcuts')kpiShortcuts.innerText=list.length;
+    if(apiName==='tabs')kpiTabs.innerText=list.length;
+    if(apiName==='cards')kpiCards.innerText=list.length;
+  }).catch(err=>{
+    console.error(`[${apiName}] 加载失败`, err);
+    const root=document.getElementById(elId);
+    if (root) root.innerHTML = `<p class='muted'>${apiName} 加载失败：${esc(err?.message||'网络异常')}</p>`;
+    toast(`${apiName} 加载失败：${err?.message||'网络异常'}`);
+  });
+}
+
+
+
+async function validateLinks(){
+  const box = document.getElementById('linkCheckBox');
+  if (box) box.innerHTML = '链接体检中...';
+  try {
+    const r = await req('/api/admin/validate-links', 'GET');
+    const bad = Array.isArray(r.invalid) ? r.invalid : [];
+    if (!bad.length) {
+      if (box) box.innerHTML = '✅ 未发现明显非法链接（http/https 以外）';
+      toast('链接体检完成：未发现异常');
+      return;
+    }
+    const top = bad.slice(0, 8).map(x => `<li>${esc(x.collection)} / ${esc(x.id)} / ${esc(x.field)}：<code>${esc(x.value)}</code></li>`).join('');
+    if (box) box.innerHTML = `<div style="color:#ffd3d3">⚠️ 发现 ${bad.length} 条可疑链接（仅展示前 8 条）：</div><ul>${top}</ul>`;
+    toast(`链接体检完成：发现 ${bad.length} 条异常`);
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">体检失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`链接体检失败：${e?.message || '网络异常'}`);
+  }
+}
+
+
+async function quickFixLinks(){
+  if(!confirm('确认一键修复非法链接？非法 link 会改成 #，非法图片/视频地址会清空。')) return;
+  try {
+    const r = await req('/api/admin/quick-fix-links', 'POST', {});
+    toast(`修复完成：${r.fixed||0} 项`);
+    await validateLinks();
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`修复失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function runHealthCheck(){
+  const box = document.getElementById('linkCheckBox');
+  if (box) box.innerHTML = '健康检查中...';
+  try {
+    const r = await req('/api/admin/health-check', 'GET');
+    const fileRows = (r.files || []).map(f => `<li>${esc(f.key)}：${f.exists ? '✅' : '❌'}，${f.size||0} bytes，${esc(f.mtime || '-')}</li>`).join('');
+    if (box) box.innerHTML = `<div>服务内存：${esc(String(r.memoryRssMb||0))} MB；运行：${esc(String(r.uptimeSec||0))} 秒；非法链接：${esc(String(r.invalidLinks||0))}</div><ul>${fileRows}</ul>`;
+    toast('健康检查完成');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">健康检查失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`健康检查失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function refreshSummary(){
+  try{
+    const r = await req('/api/admin/summary', 'GET');
+    kpiAds.innerText = r.adsCount || 0;
+    kpiShortcuts.innerText = r.shortcutsCount || 0;
+    kpiTabs.innerText = r.tabsCount || 0;
+    kpiCards.innerText = r.cardsCount || 0;
+    const meta = document.getElementById('summaryMeta');
+    if (meta) meta.textContent = `最后更新：${r.updatedAt || '-'}；启用卡片：${r.enabledCards || 0}`;
+    toast('统计已刷新');
+  }catch(e){ toast(`统计刷新失败：${e?.message||'网络异常'}`); }
+}
+
+async function exportAllData(){
+  try {
+    const payload = await req('/api/admin/export', 'GET');
+    const text = JSON.stringify(payload, null, 2);
+    const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    a.href = url;
+    a.download = `su-web-export-${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast('导出成功，文件已下载');
+  } catch (e) {
+    toast(`导出失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function resequenceCardsByCurrentView(){
+  const q=(document.getElementById('cardSearch')?.value||'').trim().toLowerCase();
+  const list=q?cardCache.filter(x=>`${x.id||''} ${x.title||''} ${x.category||''} ${x.summary||''}`.toLowerCase().includes(q)):cardCache;
+  if(!list.length) return toast('当前视图没有可重排的卡片');
+  if(!confirm(`确认重排当前视图中的 ${list.length} 张卡片顺序？`)) return;
+  try {
+    const ids = list.map(x=>x.id).filter(Boolean);
+    const r = await req('/api/admin/resequence', 'POST', { collection: 'cards', ids });
+    toast(`重排完成：更新 ${r.updated || 0} / ${r.total || 0}`);
+    loadAll();
+    refreshSummary();
+  } catch (e) {
+    toast(`重排失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function repairTabKeys(){
+  const tabs = await req('/api/tabs','GET',null,false);
+  let fixed=0;
+  for (const t of tabs){
+    const key = String(t.key||'').trim();
+    if (key) continue;
+    await req('/api/tabs/'+t.id,'PUT',{ key: 'tab-' + (t.id||Date.now()) });
+    fixed++;
+  }
+  toast(fixed ? `已修复 ${fixed} 个空分类 key` : '未发现空分类 key');
+  loadAll();
+}
+function getFilteredCardsBySearch(){
+  const q=(document.getElementById('cardSearch')?.value||'').trim().toLowerCase();
+  if(!q) return [];
+  return cardCache.filter(x=>`${x.id||''} ${x.title||''} ${x.category||''} ${x.summary||''}`.toLowerCase().includes(q));
+}
+async function batchToggleBySearch(enabled){
+  const list = getFilteredCardsBySearch();
+  if(!list.length) return toast('先输入关键词再批量操作');
+  if(!confirm(`确认将 ${list.length} 张卡片批量${enabled?'启用':'停用'}？`)) return;
+  try {
+    const ids = list.map(x=>x.id).filter(Boolean);
+    const r = await req('/api/admin/cards/batch-enabled','POST',{ ids, enabled });
+    toast(`批量处理完成：更新 ${r.updated||0}/${r.requested||ids.length}`);
+  } catch (e) {
+    toast(`批量处理失败：${e?.message||'网络异常'}`);
+  }
+  loadAll();
+}
+function batchEnableBySearch(){ return batchToggleBySearch(true); }
+function batchDisableBySearch(){ return batchToggleBySearch(false); }
 
 function loadAll(){
   renderCollection('ads','ads',(x,n)=>`<div id='ads-${n?'new':x.id}' class='grid3'><input data-k='title' placeholder='广告标题' value='${esc(x.title)}'/><input data-k='image' placeholder='广告图URL' value='${esc(x.image)}'/><input data-k='link' placeholder='广告链接' value='${esc(x.link)}'/><input data-k='order' placeholder='排序' value='${esc(x.order)}'/>${n?`<button class='btn ok' onclick="add('ads','new')">新增广告</button>`:btns('ads',x.id)}</div>`);
