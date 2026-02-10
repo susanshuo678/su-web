@@ -73,6 +73,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn ok" onclick="disableDuplicateCardsByTitle()">一键停用重复标题</button>
           <button class="btn ok" onclick="disableDuplicateCardsByLink()">一键停用重复链接</button>
           <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
+          <button class="btn ok" onclick="fillMissingUpdatedAt()">补齐更新时间</button>
           <span id="summaryMeta" class="muted"></span>
         </div>
         <div class="stats">
@@ -650,6 +651,19 @@ async function autoDisableEmptyCards(){
     loadCategoryStats();
   } catch (e) {
     toast(`自动停用失败：${e?.message || '网络异常'}`);
+  }
+}
+
+async function fillMissingUpdatedAt(){
+  if(!confirm('确认为缺失 updatedAt 的历史卡片补齐时间戳？')) return;
+  try {
+    const r = await req('/api/admin/cards/fill-updated-at', 'POST', {});
+    toast(`补齐完成：更新 ${r.updated||0}/${r.total||0}`);
+    loadAll();
+    loadRecentCards();
+    refreshSummary();
+  } catch (e) {
+    toast(`补齐失败：${e?.message || '网络异常'}`);
   }
 }
 

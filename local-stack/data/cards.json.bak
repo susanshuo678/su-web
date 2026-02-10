@@ -10,7 +10,7 @@
     "category": "help",
     "buttonText": "查看",
     "order": 10,
-    "enabled": false
+    "enabled": true
   },
   {
     "id": "c-hang-1",

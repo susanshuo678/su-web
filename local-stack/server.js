@@ -974,6 +974,24 @@ function autoDisableLowQualityCards() {
   return { updated, total: list.length, changedIds: changedIds.slice(0, 60) };
 }
 
+function fillCardsUpdatedAt() {
+  const list = readJson(FILES.cards, []);
+  let updated = 0;
+  const nowIso = new Date().toISOString();
+  const next = list.map(item => {
+    const createdAt = String(item.createdAt || '').trim();
+    const updatedAt = String(item.updatedAt || '').trim();
+    if (updatedAt) return item;
+    updated++;
+    return { ...item, updatedAt: createdAt || nowIso, createdAt: createdAt || nowIso };
+  });
+  if (updated > 0) {
+    writeJson(FILES.cards, next);
+    invalidateBootstrapCache();
+  }
+  return { updated, total: list.length };
+}
+
 function buildExportPayload() {
   return {
     exportedAt: new Date().toISOString(),
@@ -1426,6 +1444,12 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
   if (u.pathname === '/api/admin/cards/auto-disable-empty' && req.method === 'POST') {
     if (!auth(req,res)) return;
     const result = autoDisableLowQualityCards();
+    return send(res, 200, JSON.stringify({ ok: true, ...result }));
+  }
+
+  if (u.pathname === '/api/admin/cards/fill-updated-at' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    const result = fillCardsUpdatedAt();
     return send(res, 200, JSON.stringify({ ok: true, ...result }));
   }
 

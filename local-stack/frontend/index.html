@@ -98,6 +98,7 @@ function restoreTabScrollPosition(name){
 }
 function switchTab(name, btn){saveTabScrollPosition();document.querySelectorAll('.tabpage').forEach(el=>el.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');document.querySelectorAll('.nav-btn').forEach(el=>{el.classList.remove('active');el.removeAttribute('aria-current');});btn.classList.add('active');btn.setAttribute('aria-current','page');safeSetLocalStorage('suweb_active_tab', name);restoreTabScrollPosition(name);}
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const jsq=s=>JSON.stringify(String(s??''));
 function safeUrl(raw, fallback = '#'){
   const v = String(raw || '').trim();
   if (!v) return fallback;
@@ -210,6 +211,15 @@ function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
   if(mediaFilter==='starred') return isCardStarred(card);
   return true;
+}
+
+function resetFilters(){
+  currentQuery = '';
+  currentMediaFilter = 'all';
+  if (searchInputEl) searchInputEl.value = '';
+  mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === 'all'));
+  if (currentData) applyData(currentData);
+  showToast('已重置筛选');
 }
 
 function showToast(text){
@@ -329,7 +339,7 @@ function sanitizeHtml(html=''){
 
 function renderShortcuts(list=[]){if(!list.length) return '<p class="empty">暂无快捷入口</p>';return `<div class="grid4">${list.map(x=>`<a class="shortcut" href="${esc(safeUrl(x.link,'#'))}" target="_blank" rel="noopener noreferrer"><div class="icon">${x.icon?`<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(x.icon,''))}" alt="">`:'⚡'}</div><span>${esc(x.name||'入口')}</span></a>`).join('')}</div>`;}
 function renderAds(list=[]){if(!list.length) return ''; const top=list[0]; return `<a class="ad" href="${esc(safeUrl(top.link,'#'))}" target="_blank" rel="noopener noreferrer">${top.image?`<img loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(top.image,''))}" alt="">`:''}<span class="t">${esc(top.title||'推荐')}</span></a>`;}
-function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>{const safeLink=safeUrl(c.link,'#');const hasLink=!!(c.link&&c.link!=='#'&&safeLink!=='#');const starred=isCardStarred(c);const cardId=esc(c.id||'');const titleText=String(c.title||'').trim();const updatedRaw=String(c.updatedAt||c.createdAt||'').trim();const updatedText=updatedRaw?new Date(updatedRaw).toLocaleString('zh-CN',{hour12:false}):'';return `<article class="card item" data-card-id="${cardId}"><h3>${highlightText(c.title||'未命名', currentQuery)}</h3><p class="sub">${highlightText(c.summary||'', currentQuery)}</p>${updatedText?`<p class="sub" style="margin-top:4px;font-size:12px">更新于：${esc(updatedText)}</p>`:''}${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}<div class="card-actions">${hasLink?`<a class="btn" href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a><button class="btn-lite" type="button" onclick="copyCardLink('${esc(safeLink)}')">复制链接</button>`:''}${titleText?`<button class="btn-lite" type="button" onclick="copyCardTitle('${esc(titleText)}')">复制标题</button>`:''}<button class="btn-lite" type="button" onclick="toggleCardStar('${cardId}')">${starred?'★ 已收藏':'☆ 收藏'}</button></div></article>`;}).join('')}</div>`;}
+function renderCards(cards=[]){if(!cards.length) return '<p class="empty">暂无内容</p>'; return `<div class="list">${cards.map(c=>{const safeLink=safeUrl(c.link,'#');const hasLink=!!(c.link&&c.link!=='#'&&safeLink!=='#');const starred=isCardStarred(c);const cardId=esc(c.id||'');const titleText=String(c.title||'').trim();const summaryText=String(c.summary||'').trim();const updatedRaw=String(c.updatedAt||c.createdAt||'').trim();const updatedText=updatedRaw?new Date(updatedRaw).toLocaleString('zh-CN',{hour12:false}):'';return `<article class="card item" data-card-id="${cardId}"><h3>${highlightText(c.title||'未命名', currentQuery)}</h3><p class="sub">${highlightText(c.summary||'', currentQuery)}</p>${updatedText?`<p class="sub" style="margin-top:4px;font-size:12px">更新于：${esc(updatedText)}</p>`:''}${c.image?`<div class="media"><img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(safeUrl(c.image,''))}" alt=""></div>`:''}${c.video?`<div class="media"><video controls preload="none" src="${esc(safeUrl(c.video,''))}"></video></div>`:''}${c.contentHtml?`<div class="sub" style="margin-top:8px">${sanitizeHtml(c.contentHtml)}</div>`:''}<div class="card-actions">${hasLink?`<a class="btn" href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer">${esc(c.buttonText||'查看')}</a><button class="btn-lite" type="button" onclick="copyCardLink('${esc(safeLink)}')">复制链接</button>`:''}${titleText?`<button class="btn-lite" type="button" onclick="copyCardTitle('${esc(titleText)}')">复制标题</button>`:''}${summaryText?`<button class="btn-lite" type="button" onclick='copyPlainText(${jsq(summaryText)},"摘要已复制")'>复制摘要</button>`:''}<button class="btn-lite" type="button" onclick="toggleCardStar('${cardId}')">${starred?'★ 已收藏':'☆ 收藏'}</button></div></article>`;}).join('')}</div>`;}
 
 let bootstrapInFlight = null;
 let bootstrapCtrl = null;
@@ -488,7 +498,7 @@ function applyData(data){
   const list3=cards.filter(c=>inTab(c,tabKeys[2]));
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = adsHtml ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
-  const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p></section>' : '';
+  const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p><div class="card-actions"><button class="btn-lite" type="button" onclick="resetFilters()">重置筛选</button></div></section>' : '';
   const helpCards = strictTabScope ? list1 : (list1.length ? list1 : cards.slice(0,4));
   const hangCards = strictTabScope ? list2 : (list2.length ? list2 : cards.slice(0,3));
   const botsCards = strictTabScope ? list3 : (list3.length ? list3 : cards.slice(0,3));
@@ -609,7 +619,8 @@ function restoreSearchState(){
 
 function getAutoRefreshIntervalMs(){
   const base = 5 * 60 * 1000;
-  return base * Math.max(1, Math.pow(2, refreshFailCount));
+  const raw = base * Math.max(1, Math.pow(2, refreshFailCount));
+  return Math.min(raw, 20 * 60 * 1000);
 }
 
 function restoreActiveTab(){
