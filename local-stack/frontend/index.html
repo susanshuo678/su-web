@@ -57,6 +57,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="randomPickBtn" class="search-clear" type="button" aria-label="随机看看">随机</button>
       <button id="quickClaimBtn" class="search-clear" type="button" aria-label="只看可领取">只看可领</button>
       <button id="quickTodayBtn" class="search-clear" type="button" aria-label="只看今日更新">今日更新</button>
+      <button id="quickRecentBtn" class="search-clear" type="button" aria-label="只看近3天更新">近3天</button>
       <button id="toggleFilterBarBtn" class="search-clear" type="button" aria-label="折叠筛选工具栏">折叠筛选</button>
       <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="copyAllLinksBtn" class="search-clear" type="button" aria-label="复制全部可领链接">复制可领</button>
@@ -72,6 +73,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button class="filter-chip" data-media="link" type="button">可领取</button>
       <button class="filter-chip" data-media="media-link" type="button">图文+可领</button>
       <button class="filter-chip" data-media="fresh-link" type="button">7天可领</button>
+      <button class="filter-chip" data-media="fresh-3" type="button">近3天</button>
       <button class="filter-chip" data-media="fresh-14" type="button">14天更新</button>
       <button class="filter-chip" data-media="content" type="button">含正文</button>
       <button class="filter-chip" data-media="today" type="button">今日更新</button>
@@ -91,6 +93,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
       <button id="shareFilterBtn" class="filter-chip" type="button">复制筛选链接</button>
       <span id="resultMeta" class="result-meta" aria-live="polite">0 条内容</span>
     </div>
+    <div id="quickStatsBar" class="filter-collapse-tip" style="display:block;color:#5d6c8d">总数 0 · 可领 0 · 24h NEW 0 · 收藏 0</div>
     <div id="filterCollapseTip" class="filter-collapse-tip">筛选栏已折叠，点击“折叠筛选”按钮可展开。</div>
   </div>
   <section id="page-help" class="tabpage active"><section class="card"><p class="empty">内容加载中...</p><div class="skeleton"></div><div class="skeleton"></div></section></section>
@@ -154,6 +157,7 @@ const resetFilterBtnEl = document.getElementById('resetFilterBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
 const quickClaimBtnEl = document.getElementById('quickClaimBtn');
 const quickTodayBtnEl = document.getElementById('quickTodayBtn');
+const quickRecentBtnEl = document.getElementById('quickRecentBtn');
 const toggleFilterBarBtnEl = document.getElementById('toggleFilterBarBtn');
 const filterCollapseTipEl = document.getElementById('filterCollapseTip');
 const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
@@ -214,6 +218,14 @@ function updateQuickTodayBtn(){
   quickTodayBtnEl.classList.toggle('active', active);
   quickTodayBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
   quickTodayBtnEl.textContent = active ? '取消今日' : '今日更新';
+}
+
+function updateQuickRecentBtn(){
+  if (!quickRecentBtnEl) return;
+  const active = currentMediaFilter === 'fresh-3';
+  quickRecentBtnEl.classList.toggle('active', active);
+  quickRecentBtnEl.setAttribute('aria-pressed', active ? 'true' : 'false');
+  quickRecentBtnEl.textContent = active ? '取消近3天' : '近3天';
 }
 
 function updateFilterBarUi(){
@@ -344,6 +356,7 @@ function matchesMediaFilter(card, mediaFilter){
   if(mediaFilter==='link') return hasClaimableLink(card);
   if(mediaFilter==='media-link') return hasClaimableLink(card) && (!!String(card?.image||'').trim() || !!String(card?.video||'').trim());
   if(mediaFilter==='fresh-link') return hasClaimableLink(card) && isRecentlyUpdated(card, 7);
+  if(mediaFilter==='fresh-3') return isRecentlyUpdated(card, 3);
   if(mediaFilter==='fresh-14') return isRecentlyUpdated(card, 14);
   if(mediaFilter==='content') return !!String(card?.contentHtml||'').replace(/<[^>]+>/g,'').trim();
   if(mediaFilter==='today') return isSameLocalDay(card?.updatedAt || card?.createdAt);
@@ -728,6 +741,7 @@ function applyData(data){
   tabBotsEl.innerHTML = formatTabLabel(baseBotsName, list3.length);
   updateQuickClaimBtn();
   updateQuickTodayBtn();
+  updateQuickRecentBtn();
   const adsHtml = renderAds(currentData.ads||[]);
   const adsSection = (!focusModeEnabled && adsHtml) ? `<section class="card"><span class="badge">推荐广告</span>${adsHtml}</section>` : '';
   const noResult = currentQuery && !cards.length ? '<section class="card"><p class="empty">没有匹配内容，换个关键词试试。</p><div class="card-actions"><button class="btn-lite" type="button" onclick="resetFilters()">重置筛选</button></div></section>' : '';
@@ -738,6 +752,14 @@ function applyData(data){
   pageHelpEl.innerHTML=`${shortcutSection}${adsSection}${noResult || renderCards(helpCards)}`;
   pageHangEl.innerHTML=renderCards(hangCards);
   pageBotsEl.innerHTML=renderCards(botsCards);
+  const quickStatsBarEl = document.getElementById('quickStatsBar');
+  if (quickStatsBarEl) {
+    const enabledCards = (currentData.cards || []).filter(c => c?.enabled !== false);
+    const claimableCount = enabledCards.filter(hasClaimableLink).length;
+    const new24hCount = enabledCards.filter(c => isRecentlyUpdated(c, 1)).length;
+    const starredCount = enabledCards.filter(isCardStarred).length;
+    quickStatsBarEl.textContent = `总数 ${enabledCards.length} · 可领 ${claimableCount} · 24h NEW ${new24hCount} · 收藏 ${starredCount}`;
+  }
   updateSyncTime();
 }
 
@@ -850,7 +872,7 @@ function restoreSearchState(){
   const hideVisited = params.get('hideVisited') ?? (safeGetLocalStorage('suweb_hide_visited') || '0');
   const claimUnseen = params.get('claimUnseen') ?? (safeGetLocalStorage('suweb_claim_unseen') || '0');
   currentQuery = String(q).trim().toLowerCase();
-  currentMediaFilter = ['all','image','video','link','media-link','fresh-link','fresh-14','content','today','today-link','new-24h','starred','unstarred','star-link'].includes(media) ? media : 'all';
+  currentMediaFilter = ['all','image','video','link','media-link','fresh-link','fresh-3','fresh-14','content','today','today-link','new-24h','starred','unstarred','star-link'].includes(media) ? media : 'all';
   strictTabScope = strictScope === '1';
   recentSortEnabled = recentSort === '1';
   filterBarCollapsed = filterCollapsed === '1';
@@ -891,6 +913,7 @@ function restoreSearchState(){
   }
   updateQuickClaimBtn();
   updateQuickTodayBtn();
+  updateQuickRecentBtn();
 }
 
 function getAutoRefreshIntervalMs(){
@@ -971,6 +994,15 @@ if (quickTodayBtnEl) {
     if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
     if (currentData) applyData(currentData);
     showToast(currentMediaFilter === 'today' ? '已切到只看今日更新' : '已恢复全部内容');
+  });
+}
+if (quickRecentBtnEl) {
+  quickRecentBtnEl.addEventListener('click', () => {
+    currentMediaFilter = currentMediaFilter === 'fresh-3' ? 'all' : 'fresh-3';
+    mediaFilterEls.forEach(btn => btn.classList.toggle('active', (btn.dataset.media||'all') === currentMediaFilter));
+    if (starLinkFilterChipEl) starLinkFilterChipEl.classList.toggle('active', currentMediaFilter === 'star-link');
+    if (currentData) applyData(currentData);
+    showToast(currentMediaFilter === 'fresh-3' ? '已切到近3天更新' : '已恢复全部内容');
   });
 }
 if (toggleFilterBarBtnEl) {

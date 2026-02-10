@@ -79,6 +79,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
           <button class="btn" onclick="loadQualityOverview()">内容质量概览</button>
           <button class="btn" onclick="loadActionabilitySummary()">可领率看板</button>
           <button class="btn" onclick="exportClaimLinks()">导出可领链接</button>
+          <button class="btn" onclick="loadClaimDomainStats()">可领域名分布</button>
           <button class="btn ok" onclick="disableDuplicateCardsByTitle()">一键停用重复标题</button>
           <button class="btn ok" onclick="disableDuplicateCardsByLink()">一键停用重复链接</button>
           <button class="btn danger" onclick="autoDisableEmptyCards()">自动停用空内容卡片</button>
@@ -127,6 +128,7 @@ input,textarea{width:100%;padding:9px;border-radius:10px;border:1px solid #33467
         <div id="staleCardsBox" class="muted" style="margin-top:10px"></div>
         <div id="qualityOverviewBox" class="muted" style="margin-top:10px"></div>
         <div id="actionabilityBox" class="muted" style="margin-top:10px"></div>
+        <div id="claimDomainBox" class="muted" style="margin-top:10px"></div>
       </section>
 
       <section id="adsView" class="view panel"><h3>头部横排广告</h3><div id="ads"></div></section>
@@ -772,6 +774,30 @@ async function loadActionabilitySummary(){
   } catch (e) {
     if (box) box.innerHTML = `<span style="color:#ffb4b4">可领率看板加载失败：${esc(e?.message||'网络异常')}</span>`;
     toast(`可领率看板加载失败：${e?.message || '网络异常'}`);
+  }
+}
+
+
+async function loadClaimDomainStats(){
+  const box = document.getElementById('claimDomainBox');
+  if (box) box.innerHTML = '可领域名分布加载中...';
+  try {
+    const categoryInput = document.getElementById('quickSearchCategory');
+    const category = String(categoryInput?.value || '').trim();
+    const q = category ? `?category=${encodeURIComponent(category)}&limit=12` : '?limit=12';
+    const r = await req(`/api/admin/cards/claim-domain-stats${q}`, 'GET');
+    const top = Array.isArray(r.topDomains) ? r.topDomains : [];
+    if (!top.length) {
+      if (box) box.innerHTML = '暂无可统计的可领链接域名';
+      toast('域名分布：暂无数据');
+      return;
+    }
+    const rows = top.map((x,i)=>`<li>${i+1}. <code>${esc(x.domain||'-')}</code> · ${x.count||0} 条</li>`).join('');
+    if (box) box.innerHTML = `<div>可领链接总数 ${r.totalClaimable||0}，异常链接 ${r.invalidCount||0}</div><ul>${rows}</ul><div class='muted'>统计时间：${esc(r.generatedAt || '-')}</div>`;
+    toast('可领域名分布已刷新');
+  } catch (e) {
+    if (box) box.innerHTML = `<span style="color:#ffb4b4">可领域名分布加载失败：${esc(e?.message||'网络异常')}</span>`;
+    toast(`可领域名分布加载失败：${e?.message || '网络异常'}`);
   }
 }
 
