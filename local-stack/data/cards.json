@@ -43,5 +43,20 @@
     "enabled": true,
     "updatedAt": "2026-02-10T06:36:57.747Z",
     "createdAt": "2026-02-10T05:51:39.953Z"
+  },
+  {
+    "id": "c-mlg9bxsn-66f1",
+    "title": "助力测试内容（副本）",
+    "summary": "这是助力页测试卡片\n支持三行摘要\n用于验证前台展示",
+    "contentHtml": "<p><strong>助力页正文测试</strong></p><p>这段内容来自后台，可在文档编辑器继续编辑。</p>",
+    "link": "#",
+    "image": "",
+    "video": "",
+    "category": "help",
+    "buttonText": "查看详情",
+    "order": 11,
+    "enabled": false,
+    "updatedAt": "2026-02-10T07:06:11.543Z",
+    "createdAt": "2026-02-10T07:06:11.543Z"
   }
 ]

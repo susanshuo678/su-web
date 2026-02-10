@@ -52,6 +52,7 @@ body.dense-mode .card{padding:10px;border-radius:10px}body.dense-mode .item h3{f
     <div class="search-row">
       <input id="cardSearch" class="search" placeholder="搜索内容（标题/摘要）" aria-label="搜索内容">
       <button id="randomPickBtn" class="search-clear" type="button" aria-label="随机看看">随机</button>
+      <button id="copyTabDigestBtn" class="search-clear" type="button" aria-label="复制本栏摘要">复制本栏</button>
       <button id="clearSearchBtn" class="search-clear" type="button" aria-label="清空搜索">清空</button>
     </div>
     <div class="filter-row" role="group" aria-label="内容筛选">
@@ -133,6 +134,7 @@ const tabScopeToggleEl = document.getElementById('tabScopeToggle');
 const recentSortToggleEl = document.getElementById('recentSortToggle');
 const clearSearchBtnEl = document.getElementById('clearSearchBtn');
 const randomPickBtnEl = document.getElementById('randomPickBtn');
+const copyTabDigestBtnEl = document.getElementById('copyTabDigestBtn');
 const clearStarBtnEl = document.getElementById('clearStarBtn');
 const starLinkFilterChipEl = document.getElementById('starLinkFilterChip');
 const focusModeToggleEl = document.getElementById('focusModeToggle');
@@ -315,6 +317,23 @@ function pickRandomVisibleCard(){
     target.style.outlineOffset = '0';
   }, 1200);
   showToast(`随机定位：第 ${cards.indexOf(target) + 1} 条`);
+}
+
+async function copyActiveTabDigest(){
+  const active = document.querySelector('.tabpage.active');
+  if (!active) return;
+  const cards = [...active.querySelectorAll('.item[data-card-id]')];
+  if (!cards.length) return showToast('当前栏目暂无可复制内容');
+  const title = active.id === 'page-help' ? (tabHelpEl?.textContent || '助力')
+    : active.id === 'page-hang' ? (tabHangEl?.textContent || '代挂')
+    : (tabBotsEl?.textContent || '机器人列表');
+  const rows = cards.slice(0, 20).map((el, idx) => {
+    const cardTitle = (el.querySelector('h3')?.textContent || '').trim();
+    const summary = (el.querySelector('.sub')?.textContent || '').replace(/\s+/g, ' ').trim();
+    return `${idx + 1}. ${cardTitle}${summary ? ` - ${summary}` : ''}`;
+  });
+  const digest = `【${title}】共 ${cards.length} 条\n${rows.join('\n')}`;
+  await copyPlainText(digest, '本栏摘要已复制');
 }
 
 async function copyPlainText(text, okText='已复制'){
@@ -757,6 +776,9 @@ if (clearSearchBtnEl) {
 }
 if (randomPickBtnEl) {
   randomPickBtnEl.addEventListener('click', pickRandomVisibleCard);
+}
+if (copyTabDigestBtnEl) {
+  copyTabDigestBtnEl.addEventListener('click', copyActiveTabDigest);
 }
 if (clearStarBtnEl) {
   clearStarBtnEl.addEventListener('click', () => {

@@ -646,6 +646,28 @@ function createId(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(2).toString('hex')}`;
 }
 
+function cloneCardById(cardId = '') {
+  const id = String(cardId || '').trim();
+  if (!id) return { ok: false, error: 'id required' };
+  const list = readJson(FILES.cards, []);
+  const source = list.find(x => String(x.id || '') === id);
+  if (!source) return { ok: false, error: 'card not found' };
+  const stamp = new Date().toISOString();
+  const copy = {
+    ...source,
+    id: createId('c'),
+    title: `${String(source.title || '未命名卡片').trim()}（副本）`.slice(0, 120),
+    order: normalizeOrder(source.order, 9999) + 1,
+    createdAt: stamp,
+    updatedAt: stamp,
+    enabled: false
+  };
+  list.push(copy);
+  writeJson(FILES.cards, list);
+  invalidateBootstrapCache();
+  return { ok: true, newId: copy.id, sourceId: id };
+}
+
 function sortByOrder(arr) {
   return [...arr].sort((a, b) => {
     const byOrder = normalizeOrder(a.order) - normalizeOrder(b.order);
@@ -1588,6 +1610,18 @@ if (u.pathname === '/api/admin/cards/batch-enabled' && req.method === 'POST') {
     if (!auth(req,res)) return;
     return parseBody(req).then(({ ids, utmSource, utmMedium, utmCampaign }) => {
       const result = batchAppendTrackingParams(ids, utmSource, utmMedium, utmCampaign);
+      return send(res, 200, JSON.stringify({ ok: true, ...result }));
+    }).catch((err)=>handleParseError(res, err));
+  }
+
+  if (u.pathname === '/api/admin/cards/clone' && req.method === 'POST') {
+    if (!auth(req,res)) return;
+    return parseBody(req).then(({ id }) => {
+      const result = cloneCardById(id);
+      if (!result.ok) {
+        const status = result.error === 'card not found' ? 404 : 400;
+        return send(res, status, JSON.stringify({ error: result.error }));
+      }
       return send(res, 200, JSON.stringify({ ok: true, ...result }));
     }).catch((err)=>handleParseError(res, err));
   }
